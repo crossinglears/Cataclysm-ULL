@@ -3,11 +3,16 @@
   <id>org.cataclysmdda.CataclysmDDA</id>
   <metadata_license>CC-BY-SA-3.0</metadata_license>
   <project_license>CC-BY-SA-3.0</project_license>
-  <name>Cataclysm: Dark Days Ahead</name>
+  <name>Cataclysm: United Lifeline</name>
   <summary>
     A turn-based survival game set in a post-apocalyptic world
   </summary>
   <description>
+    <p>
+      Cataclysm: United Lifeline (CULL) is a respectful fork inspired by
+      Cataclysm: Dark Days Ahead, developed by Crossing Lears
+      (https://crossinglears.com/).
+    </p>
     <p>
       Struggle to survive in a harsh, persistent, procedurally
       generated world. Scavenge the remnants of a dead civilization

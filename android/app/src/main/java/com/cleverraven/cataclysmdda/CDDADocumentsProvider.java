@@ -16,7 +16,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
- * DocumentsProvider for Cataclysm: Dark Days Ahead.
+ * DocumentsProvider for Cataclysm: United Lifeline.
  * Exposes the app's external private data directory (/storage/emulated/0/Android/data/package/)
  * so that users can back up saves, mods, and configs without root access.
  * <p>
