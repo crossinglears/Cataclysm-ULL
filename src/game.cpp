@@ -100,6 +100,10 @@
 #include "event.h"
 #include "event_bus.h"
 #include "faction.h"
+#include "faction_camp.h"
+#include "colony_camera.h"
+#include "colony_combat.h"
+#include "colony_setup.h"
 #include "fault.h"
 #include "field.h"
 #include "field_type.h"
@@ -1328,6 +1332,94 @@ void game::create_starting_npcs()
     //One random starting NPC mission
     tmp->add_new_mission( mission::reserve_random( ORIGIN_OPENER_NPC, tmp->pos_abs_omt(),
                           tmp->getID() ) );
+}
+
+void game::seed_colony_start( const colony_setup_options &opts )
+{
+    // Engine proxy avatar is an invisible god-mode camera (see colony_camera).
+    // All starters are camp-resident NPCs — the player is not one of them.
+    const int starter_survivor_count = std::clamp( opts.survivor_count,
+                                       colony_setup_options::min_survivors,
+                                       colony_setup_options::max_survivors );
+    avatar &player_character = get_avatar();
+    ensure_colony_god_avatar( player_character );
+
+    std::vector<shared_ptr_fast<npc>> starters;
+    starters.reserve( starter_survivor_count );
+    for( int i = 0; i < starter_survivor_count; i++ ) {
+        shared_ptr_fast<npc> tmp = make_shared_fast<npc>();
+        tmp->normalize();
+        tmp->randomize( pick_colony_starter_class( opts, i ) );
+        // Spread around the observer so they don't stack on one tile (or the shelter NPC).
+        static const point offsets[] = {
+            point( 2, 0 ), point( -2, 0 ), point( 0, 2 ),
+            point( 0, -2 ), point( 2, 2 ), point( -2, -2 ),
+            point( 3, 1 ), point( -3, 1 ), point( 1, 3 ),
+            point( -1, -3 ), point( 3, -2 ), point( -3, -2 )
+        };
+        tmp->spawn_at_precise( player_character.pos_abs() + offsets[i % 12] );
+        overmap_buffer.insert_npc( tmp );
+        tmp->form_opinion( player_character );
+        tmp->set_fac( faction_your_followers );
+        tmp->mission = NPC_MISSION_NULL;
+        add_npc_follower( tmp->getID() );
+        starters.push_back( tmp );
+    }
+    load_npcs();
+
+    // Settlement = extended faction basecamp at the observer's OMT.
+    const tripoint_abs_omt camp_omt = player_character.pos_abs_omt();
+    std::optional<basecamp *> camp = talk_function::found_colony_camp(
+                                         camp_omt, faction_your_followers, _( "Colony" ) );
+    if( !camp ) {
+        debugmsg( "Failed to bootstrap colony basecamp at %s", camp_omt.to_string() );
+        add_msg( m_bad, _( "Failed to establish your colony settlement." ) );
+        add_msg( m_good, _( "Your colony of %d survivors gathers.  Lead them well." ),
+                 starter_survivor_count );
+        return;
+    }
+
+    basecamp *settlement = *camp;
+    for( shared_ptr_fast<npc> &tmp : starters ) {
+        // Mirror talk_function::assign_camp without opening the job UI.
+        if( tmp->has_player_activity() ) {
+            tmp->revert_after_activity();
+        }
+        tmp->set_attitude( NPCATT_NULL );
+        tmp->set_mission( NPC_MISSION_CAMP_RESIDENT );
+        tmp->guard_pos = std::nullopt;
+        tmp->clear_ai_guard_pos();
+        settlement->add_assignee( tmp->getID() );
+        tmp->chatbin.first_topic = "TALK_FRIEND_CAMP_RESIDENT";
+        tmp->goal = npc::no_goal_point;
+        tmp->omt_path.clear();
+        tmp->path.clear();
+        tmp->chair_pos = std::nullopt;
+        tmp->wander_pos = std::nullopt;
+        tmp->clear_destination();
+        tmp->clear_committed_goal();
+    }
+    settlement->validate_assignees();
+    const int food_kcal = colony_starter_food_kcal_per_survivor( opts.gear, opts.difficulty );
+    talk_function::seed_colony_local_work( *settlement, starter_survivor_count, food_kcal );
+    seed_colony_defense( *settlement );
+    seed_colony_starter_gear( *settlement, opts );
+
+    add_msg( m_good, _( "Your colony of %d survivors settles at %s.  Lead them well." ),
+             starter_survivor_count, settlement->camp_name() );
+    add_msg( m_info,
+             _( "You observe from above.  Movement keys pan the camera without revealing the map.  %s / %s change floor freely." ),
+             press_x( ACTION_MOVE_UP ), press_x( ACTION_MOVE_DOWN ) );
+    add_msg( m_info, _( "%s for the colony leadership hub." ),
+             press_x( ACTION_COLONY_HUB ) );
+    add_msg( m_info, _( "%s for camp stock, expansions, and the colony job board." ),
+             press_x( ACTION_FACTIONS ) );
+    add_msg( m_info, _( "%s to place blueprints and queue camp construction." ),
+             press_x( ACTION_COLONY_CONSTRUCTION ) );
+    add_msg( m_info, _( "%s to plan scout, loot, hunt, and recruit expeditions." ),
+             press_x( ACTION_COLONY_EXPEDITIONS ) );
+    add_msg( m_info, _( "%s for standing combat orders, guards, and camp defense." ),
+             press_x( ACTION_COLONY_COMBAT ) );
 }
 
 static int veh_lumi( vehicle &veh )
@@ -2655,6 +2747,10 @@ input_context get_default_mode_input_context()
         ctxt.register_action( "sky" );
         ctxt.register_action( "missions" );
         ctxt.register_action( "factions" );
+        ctxt.register_action( "colony_construction" );
+        ctxt.register_action( "colony_expeditions" );
+        ctxt.register_action( "colony_combat" );
+        ctxt.register_action( "colony_hub" );
         ctxt.register_action( "morale" );
         ctxt.register_action( "messages" );
         ctxt.register_action( "help" );

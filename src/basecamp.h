@@ -288,6 +288,10 @@ class basecamp
         int recipe_batch_max( const recipe &making ) const;
         void form_crafting_inventory();
         void form_crafting_inventory( map &target_map );
+        /** Snapshot from form_crafting_inventory(); for UI material checks. */
+        const inventory &crafting_inventory() const {
+            return _inv;
+        }
         std::list<item> use_charges( const itype_id &fake_id, int &quantity );
         /**
          * spawn items or corpses based on search attempts
@@ -384,6 +388,15 @@ class basecamp
         void start_menial_labor();
         void worker_assignment_ui();
         void job_assignment_ui();
+        /** CULL Phase 3: colony-wide job priorities applied to all camp residents. */
+        void colony_job_board_ui();
+        /**
+         * CULL Phase 5: ensure scout / hunt / recruit / gathering provides exist so
+         * expedition planner and camp mission board can launch companion missions.
+         */
+        void ensure_colony_expedition_provides();
+        /** CULL Phase 5: resolve a destination loot expedition into real camp items. */
+        bool colony_loot_return( const mission_id &miss_id );
         // Assembles a dummy NPC with all available recipes and uses player input on the regular crafting GUI to
         // determine what to make, batch size, who to assign to making it, etc.
         void start_crafting( const mission_id &miss_id );
@@ -484,6 +497,9 @@ class basecamp
         void unload_camp_map();
         void set_owner( faction_id new_owner );
         faction_id get_owner();
+        const std::map<point_rel_omt, expansion_data> &camp_expansions() const {
+            return expansions;
+        }
     private:
         friend class basecamp_action_components;
 

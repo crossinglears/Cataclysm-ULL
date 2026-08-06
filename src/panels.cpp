@@ -456,6 +456,22 @@ std::string panel_manager::get_current_layout_id() const
     return current_layout_id;
 }
 
+void panel_manager::set_current_layout( const std::string &layout_id )
+{
+    if( layouts.find( layout_id ) == layouts.end() ) {
+        debugmsg( "Unknown panel layout '%s'", layout_id );
+        return;
+    }
+    if( current_layout_id == layout_id ) {
+        return;
+    }
+    current_layout_id = layout_id;
+    update_offsets( get_current_layout().panels().begin()->get_width() );
+    if( g ) {
+        g->mark_main_ui_adaptor_resize();
+    }
+}
+
 int panel_manager::get_width_right() const
 {
     if( get_option<std::string>( "SIDEBAR_POSITION" ) == "left" ) {

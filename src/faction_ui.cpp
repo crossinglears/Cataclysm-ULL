@@ -21,6 +21,9 @@
 #include "character.h"
 #include "character_id.h"
 #include "color.h"
+#include "colony_combat.h"
+#include "colony_construction.h"
+#include "colony_expeditions.h"
 #include "coordinates.h"
 #include "dialogue_chatbin.h"
 #include "display.h"
@@ -36,9 +39,11 @@
 #include "mod_manager.h"
 #include "mtype.h"
 #include "npc.h"
+#include "options.h"
 #include "output.h"
 #include "overmapbuffer.h"
 #include "pimpl.h"
+#include "player_activity.h"
 #include "point.h"
 #include "skill.h"
 #include "stomach.h"
@@ -189,6 +194,7 @@ bool faction_ui::execute()
     ctxt.register_action( "PREV_TAB" );
     ctxt.register_action( "MOUSE_MOVE" );
     ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "MANAGE_JOBS", to_translation( "Colony job board" ) );
     ctxt.register_action( "QUIT" );
     ctxt.register_action( "HELP_KEYBINDINGS" );
     ctxt.set_timeout( 16 );
@@ -198,6 +204,17 @@ bool faction_ui::execute()
         last_action = ctxt.handle_input();
         if( last_action == "QUIT" || !get_is_open() ) {
             break;
+        }
+
+        if( last_action == "MANAGE_JOBS" ) {
+            if( selected_tab == tab_mode::TAB_MYFACTION && picked_camp != nullptr ) {
+                hide_ui = true;
+                picked_camp->colony_job_board_ui();
+                return true;
+            } else {
+                popup( _( "Select your colony camp tab to open the job board." ) );
+            }
+            continue;
         }
 
         if( last_action == "CONFIRM" ) {
@@ -222,6 +239,54 @@ bool faction_ui::execute()
                 }
             }
             if( selected_tab == tab_mode::TAB_MYFACTION && picked_camp != nullptr ) {
+                if( get_option<bool>( "CULL_COLONY" ) ) {
+                    uilist camp_menu;
+                    camp_menu.text = picked_camp->camp_name();
+                    camp_menu.desc_enabled = true;
+                    camp_menu.addentry_desc( 0, true, 'r', _( "Rename camp" ),
+                                             _( "Change the settlement display name." ) );
+                    camp_menu.addentry_desc( 1, true, 'j', _( "Colony job board" ),
+                                             _( "Set colony-wide work priorities." ) );
+                    camp_menu.addentry_desc( 2, true, 'b', _( "Colony construction" ),
+                                             _( "Blueprints and camp upgrades." ) );
+                    camp_menu.addentry_desc( 3, true, 'e', _( "Colony expeditions" ),
+                                             _( "Scout, loot, hunt, and recruit missions." ) );
+                    camp_menu.addentry_desc( 4, true, 'd', _( "Colony defense" ),
+                                             _( "Standing orders, guards, retreat zones." ) );
+                    camp_menu.addentry_desc( 5, true, 'w', _( "Per-worker job priorities" ),
+                                             _( "Tune priorities for individual residents." ) );
+                    camp_menu.addentry_desc( 6, true, 'a', _( "Assign workers to camp" ),
+                                             _( "Move followers onto or off this camp roster." ) );
+                    camp_menu.query();
+                    if( camp_menu.ret == 0 ) {
+                        picked_camp->query_new_name();
+                    } else if( camp_menu.ret == 1 ) {
+                        hide_ui = true;
+                        picked_camp->colony_job_board_ui();
+                        return true;
+                    } else if( camp_menu.ret == 2 ) {
+                        hide_ui = true;
+                        colony_construction_menu();
+                        return true;
+                    } else if( camp_menu.ret == 3 ) {
+                        hide_ui = true;
+                        colony_expeditions_menu();
+                        return true;
+                    } else if( camp_menu.ret == 4 ) {
+                        hide_ui = true;
+                        colony_combat_menu();
+                        return true;
+                    } else if( camp_menu.ret == 5 ) {
+                        hide_ui = true;
+                        picked_camp->job_assignment_ui();
+                        return true;
+                    } else if( camp_menu.ret == 6 ) {
+                        hide_ui = true;
+                        picked_camp->worker_assignment_ui();
+                        return true;
+                    }
+                    return false;
+                }
                 picked_camp->query_new_name();
                 return false;
             }
@@ -346,11 +411,24 @@ void faction_ui::your_faction_display() const
     tripoint_abs_omt camp_pos = picked_camp->camp_omt_pos();
     std::string direction = direction_name( direction_from( player_abspos, camp_pos ) );
     faction *yours = player_character.get_faction();
+    const bool is_colony = get_option<bool>( "CULL_COLONY" );
 
     // Hint
-    const std::string hint_desc = string_format(
-                                      _( "Press [%s] to rename this camp" ), ctxt.get_desc( "CONFIRM" ) );
-    cataimgui::draw_colored_text( hint_desc, c_light_gray, col_width );
+    if( is_colony ) {
+        cataimgui::draw_colored_text( _( "Colony leadership — overview" ),
+                                      c_light_green, col_width );
+        const std::string hub_hint = string_format(
+                                         _( "Press [%s] job board · [%s] camp menu (jobs / build / expeditions / defense)" ),
+                                         ctxt.get_desc( "MANAGE_JOBS" ), ctxt.get_desc( "CONFIRM" ) );
+        cataimgui::draw_colored_text( hub_hint, c_light_gray, col_width );
+        cataimgui::draw_colored_text(
+            _( "Also: Colony hub from the Info action menu for all leadership panels." ),
+            c_dark_gray, col_width );
+    } else {
+        const std::string hint_desc = string_format(
+                                          _( "Press [%s] to rename this camp" ), ctxt.get_desc( "CONFIRM" ) );
+        cataimgui::draw_colored_text( hint_desc, c_light_gray, col_width );
+    }
 
     if( direction != "center" ) {
         const std::string desc_dir = string_format( _( "Direction: to the %s" ), direction );
@@ -360,10 +438,16 @@ void faction_ui::your_faction_display() const
     const std::string desc_loc = string_format( _( "Location: %s" ), camp_pos.to_string() );
     cataimgui::draw_colored_text( desc_loc, col_width );
 
+    // Stock (faction food stores are the camp food supply backbone)
     const std::string food_text = string_format( _( "Food Supply: %s (%d kcal)" ),
                                   yours->food_supply_text(), yours->food_supply().kcal() );
     const nc_color food_col = yours->food_supply_color();
     cataimgui::draw_colored_text( food_text, food_col, col_width );
+
+    const int food_days = picked_camp->camp_food_supply_days( MODERATE_EXERCISE );
+    const std::string food_days_text = string_format( _( "Stock endurance: %d days at moderate work" ),
+                                       food_days );
+    cataimgui::draw_colored_text( food_days_text, food_col, col_width );
 
     const auto &[vit_color, vit] = yours->vitamin_stores( vitamin_type::VITAMIN );
     const std::string worst_vitamin = string_format( "%s: %s", _( "Worst vitamin" ), vit );
@@ -372,6 +456,89 @@ void faction_ui::your_faction_display() const
     const auto &[toxin_color, toxin] = yours->vitamin_stores( vitamin_type::TOXIN );
     const std::string worst_toxin = string_format( "%s: %s", _( "Worst toxin" ), toxin );
     cataimgui::draw_colored_text( worst_toxin, toxin_color, col_width );
+
+    // Residents (cap display for performance with large colonies)
+    constexpr size_t max_residents_shown = 12;
+    const std::vector<npc_ptr> residents = picked_camp->get_npcs_assigned();
+    int busy = 0;
+    int idle = 0;
+    for( const npc_ptr &guy : residents ) {
+        if( !guy ) {
+            continue;
+        }
+        bool has_pri = false;
+        for( const activity_id &elem : guy->job.get_prioritised_vector() ) {
+            if( guy->job.get_priority_of_job( elem ) > 0 ) {
+                has_pri = true;
+                break;
+            }
+        }
+        if( has_pri ) {
+            busy++;
+        } else {
+            idle++;
+        }
+    }
+    const std::string resident_header = string_format(
+                                            _( "Residents: %d  (jobs enabled: %d · idle: %d)" ),
+                                            residents.size(), busy, idle );
+    cataimgui::draw_colored_text( resident_header, c_white, col_width );
+    if( residents.empty() ) {
+        cataimgui::draw_colored_text( _( "  (none assigned)" ), c_dark_gray, col_width );
+    } else {
+        size_t shown = 0;
+        for( const npc_ptr &guy : residents ) {
+            if( !guy ) {
+                continue;
+            }
+            if( shown >= max_residents_shown ) {
+                cataimgui::draw_colored_text(
+                    string_format( _( "  …and %d more (open job board for full roster)" ),
+                                   residents.size() - shown ),
+                    c_dark_gray, col_width );
+                break;
+            }
+            std::string job_summary;
+            if( guy->has_job() ) {
+                // Show the highest-priority enabled job verb.
+                activity_id top;
+                int top_pri = 0;
+                for( const activity_id &elem : guy->job.get_prioritised_vector() ) {
+                    const int pri = guy->job.get_priority_of_job( elem );
+                    if( pri > top_pri ) {
+                        top_pri = pri;
+                        top = elem;
+                    }
+                }
+                if( top_pri > 0 ) {
+                    player_activity sample( top );
+                    job_summary = string_format( _( " — %s (pri %d)" ), sample.get_verb(), top_pri );
+                }
+            } else {
+                job_summary = _( " — idle" );
+            }
+            cataimgui::draw_colored_text( string_format( "  %s%s", guy->disp_name(), job_summary ),
+                                          col_width );
+            shown++;
+        }
+    }
+
+    // Expansion status
+    cataimgui::draw_colored_text( _( "Expansions:" ), c_white, col_width );
+    const auto &expansions = picked_camp->camp_expansions();
+    if( expansions.empty() ) {
+        cataimgui::draw_colored_text( _( "  (none)" ), c_dark_gray, col_width );
+    } else {
+        for( const auto &exp : expansions ) {
+            const auto dir_it = base_camps::all_directions.find( exp.first );
+            const std::string dir_label = dir_it != base_camps::all_directions.end()
+                                         ? dir_it->second.bracket_abbr.translated()
+                                         : "?";
+            const std::string tab = picked_camp->expansion_tab( exp.first );
+            const std::string line = string_format( _( "  %s %s (%s)" ), dir_label, tab, exp.second.type );
+            cataimgui::draw_colored_text( line, col_width );
+        }
+    }
 
     const std::string bldg = picked_camp->next_upgrade( base_camps::base_dir, 1 );
     const std::string bldg_full = string_format( "%s: %s", _( "Next Upgrade" ), bldg );

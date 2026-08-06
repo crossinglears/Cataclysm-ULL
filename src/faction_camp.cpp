@@ -223,6 +223,15 @@ static const update_mapgen_id update_mapgen_faction_wall_level_W_1( "faction_wal
 
 static const zone_type_id zone_type_CAMP_FOOD( "CAMP_FOOD" );
 static const zone_type_id zone_type_CAMP_STORAGE( "CAMP_STORAGE" );
+static const zone_type_id zone_type_FARM_PLOT( "FARM_PLOT" );
+static const zone_type_id zone_type_LOOT_UNSORTED( "LOOT_UNSORTED" );
+
+static const activity_id ACT_MOVE_LOOT( "ACT_MOVE_LOOT" );
+static const activity_id ACT_MULTIPLE_BUTCHER( "ACT_MULTIPLE_BUTCHER" );
+static const activity_id ACT_MULTIPLE_CHOP_PLANKS( "ACT_MULTIPLE_CHOP_PLANKS" );
+static const activity_id ACT_MULTIPLE_CHOP_TREES( "ACT_MULTIPLE_CHOP_TREES" );
+static const activity_id ACT_MULTIPLE_CONSTRUCTION( "ACT_MULTIPLE_CONSTRUCTION" );
+static const activity_id ACT_MULTIPLE_FARM( "ACT_MULTIPLE_FARM" );
 
 static const std::string faction_wall_level_n_0_string = "faction_wall_level_N_0";
 static const std::string faction_wall_level_n_1_string = "faction_wall_level_N_1";
@@ -660,6 +669,136 @@ static std::optional<basecamp *> get_basecamp( npc &p,
     temp_camp->set_owner( p.get_fac_id() );
     temp_camp->define_camp( omt_pos, camp_type );
     return temp_camp;
+}
+
+std::optional<basecamp *> talk_function::found_colony_camp( const tripoint_abs_omt &omt_pos,
+        const faction_id &owner, const std::string &camp_name )
+{
+    std::optional<basecamp *> existing = overmap_buffer.find_camp( omt_pos.xy() );
+    if( existing ) {
+        basecamp *camp = *existing;
+        camp->set_owner( owner );
+        if( camp->camp_name().empty() || camp->camp_name() == "faction_camp" ) {
+            camp->set_name( camp_name );
+        }
+        return camp;
+    }
+
+    // Avoid founding on top of another camp in the neighborhood (same rule as start_camp).
+    for( const auto &om_near : om_building_region( omt_pos, 3 ) ) {
+        const oter_id &om_type = oter_id( om_near.first );
+        if( is_ot_match( "faction_base", om_type, ot_match_type::contains ) ||
+            overmap_buffer.has_camp( om_near.second ) ) {
+            debugmsg( "found_colony_camp: too close to another camp at %s",
+                      om_near.second.to_string() );
+            return std::nullopt;
+        }
+    }
+
+    std::string camp_type = "default";
+    const oter_id &omt_ref = overmap_buffer.ter( omt_pos );
+    const std::optional<mapgen_arguments> *maybe_args = overmap_buffer.mapgen_args( omt_pos );
+    const auto &pos_camps = recipe_group::get_recipes_by_id( "all_faction_base_types", omt_ref,
+                            maybe_args );
+    if( !pos_camps.empty() ) {
+        // Deterministic pick among terrain-compatible base types.
+        recipe_id chosen = pos_camps.begin()->first;
+        for( const auto &it : pos_camps ) {
+            if( it.first.str() < chosen.str() ) {
+                chosen = it.first;
+            }
+        }
+        const recipe &making = chosen.obj();
+        const ret_val<void> mapgen_result = run_mapgen_update_func( making.get_blueprint(),
+                                            omt_pos, {} );
+        if( mapgen_result.success() ) {
+            camp_type = chosen.str();
+        } else {
+            debugmsg( "Colony camp blueprint %s failed: %s", making.get_blueprint().str(),
+                      mapgen_result.str() );
+        }
+    }
+
+    get_map().add_camp( omt_pos, "faction_camp" );
+    std::optional<basecamp *> bcp = overmap_buffer.find_camp( omt_pos.xy() );
+    if( !bcp ) {
+        return std::nullopt;
+    }
+    basecamp *temp_camp = *bcp;
+    temp_camp->set_owner( owner );
+    // Non-interactive: skip name popup; terrain already updated when blueprint succeeded.
+    temp_camp->define_camp( omt_pos, camp_type, false );
+    temp_camp->set_name( camp_name );
+    for( int tab_num = base_camps::TAB_MAIN; tab_num <= base_camps::TAB_NW; tab_num++ ) {
+        std::vector<ui_mission_id> temp;
+        temp_camp->hidden_missions.push_back( temp );
+    }
+    return temp_camp;
+}
+
+void talk_function::seed_colony_local_work( basecamp &camp, int starter_survivor_count,
+        int food_kcal_per_survivor )
+{
+    faction *fac = g->faction_manager_ptr->get( camp.get_owner() );
+    if( !fac ) {
+        debugmsg( "seed_colony_local_work: camp has no faction" );
+        return;
+    }
+
+    // Starter larder so residents can eat from camp stock under BT autonomy.
+    // turn_zero = non-expiring entry. Scaled by Phase 7 gear / difficulty.
+    const int starter_kcal = std::max( 1, starter_survivor_count ) *
+                             std::max( 1000, food_kcal_per_survivor );
+    nutrients starter;
+    starter.calories = static_cast<int64_t>( starter_kcal ) * 1000;
+    std::map<time_point, nutrients> food_add;
+    food_add.emplace( calendar::turn_zero, starter );
+    fac->add_to_food_supply( food_add );
+
+    // Local work zones for ACT_MULTIPLE_* / hauling. Farm/construction options start
+    // empty; players refine seeds/blueprints via the zone manager.
+    zone_manager &mgr = zone_manager::get_manager();
+    const tripoint_abs_omt camp_omt = camp.camp_omt_pos();
+    const tripoint_abs_ms omt_origin = project_to<coords::ms>( camp_omt );
+    const faction_id fac_id = fac->id;
+
+    auto add_zone = [&]( const std::string & name, const zone_type_id & type,
+    const point & tl, const point & br ) {
+        if( mgr.has_near( type, omt_origin + point( 12, 12 ), 24, fac_id ) ) {
+            return;
+        }
+        mgr.add( name, type, fac_id, false, true,
+                 omt_origin + tl, omt_origin + br, nullptr, true );
+    };
+
+    add_zone( _( "Colony storage" ), zone_type_CAMP_STORAGE, point( 9, 9 ), point( 14, 14 ) );
+    add_zone( _( "Colony food drop" ), zone_type_CAMP_FOOD, point( 9, 9 ), point( 14, 14 ) );
+    add_zone( _( "Colony haul" ), zone_type_LOOT_UNSORTED, point( 5, 5 ), point( 8, 14 ) );
+    add_zone( _( "Colony farm" ), zone_type_FARM_PLOT, point( 15, 5 ), point( 20, 11 ) );
+    // Construction blueprint zones are placed/configured via Colony Construction (Phase 4);
+    // an empty CONSTRUCTION_BLUEPRINT zone would make workers attempt construction index 0.
+
+    // Default job_data priorities: haul first, then construction/farm support.
+    const std::vector<std::pair<activity_id, int>> defaults = {
+        { ACT_MOVE_LOOT, 3 },
+        { ACT_MULTIPLE_CONSTRUCTION, 2 },
+        { ACT_MULTIPLE_FARM, 2 },
+        { ACT_MULTIPLE_CHOP_TREES, 1 },
+        { ACT_MULTIPLE_CHOP_PLANKS, 1 },
+        { ACT_MULTIPLE_BUTCHER, 1 }
+    };
+    for( const npc_ptr &guy : camp.get_npcs_assigned() ) {
+        if( !guy ) {
+            continue;
+        }
+        for( const auto &job : defaults ) {
+            guy->job.set_task_priority( job.first, job.second );
+        }
+        // Autonomy: allow sleep under colony policy (already default, reaffirm).
+        guy->rules.set_flag( ally_rule::allow_sleep );
+    }
+
+    camp.ensure_colony_expedition_provides();
 }
 
 /** @relates string_id */
@@ -1621,7 +1760,13 @@ bool basecamp::handle_mission( const ui_mission_id &miss_id )
 
         case Camp_Gather_Materials:
             if( miss_id.ret ) {
-                gathering_return( miss_id.id, 3_hours );
+                if( miss_id.id.parameters.compare( 0, 11, "colony_loot" ) == 0 ) {
+                    colony_loot_return( miss_id.id );
+                } else {
+                    gathering_return( miss_id.id, 3_hours );
+                }
+            } else if( miss_id.id.parameters.compare( 0, 11, "colony_loot" ) == 0 ) {
+                popup( _( "Plan loot expeditions from the Colony Expeditions panel." ) );
             } else {
                 start_mission( miss_id.id, 3_hours, true,
                                _( "departs to search for materials…" ), false, {}, skill_survival, 0, LIGHT_EXERCISE );
@@ -2299,6 +2444,183 @@ void basecamp::job_assignment_ui()
             break;
         }
     }
+}
+
+void basecamp::colony_job_board_ui()
+{
+    validate_assignees();
+    std::vector<npc *> residents;
+    residents.reserve( get_npcs_assigned().size() );
+    for( const npc_ptr &elem : get_npcs_assigned() ) {
+        if( elem ) {
+            residents.push_back( elem.get() );
+        }
+    }
+    if( residents.empty() ) {
+        popup( _( "No residents are assigned to this colony camp." ) );
+        return;
+    }
+
+    // Cap interactive job edits when the roster is huge (still apply to all residents).
+    constexpr size_t warn_roster = 24;
+    if( residents.size() > warn_roster ) {
+        add_msg( m_info,
+                 _( "Large colony (%d residents): colony-wide priority changes still apply to everyone." ),
+                 residents.size() );
+    }
+
+    // Use the first resident's job map as the category list (all NPCs share the same keys).
+    const std::vector<activity_id> job_list = residents.front()->job.get_prioritised_vector();
+
+    auto colony_priority = [&]( const activity_id & job ) -> int {
+        int first = residents.front()->job.get_priority_of_job( job );
+        for( npc *guy : residents ) {
+            if( guy->job.get_priority_of_job( job ) != first ) {
+                // Mixed priorities across residents — report as the max for display.
+                int max_p = first;
+                for( npc *g2 : residents ) {
+                    max_p = std::max( max_p, g2->job.get_priority_of_job( job ) );
+                }
+                return max_p;
+            }
+        }
+        return first;
+    };
+
+    auto workers_on_job = [&]( const activity_id & job ) -> int {
+        int count = 0;
+        for( npc *guy : residents ) {
+            if( guy->job.get_priority_of_job( job ) > 0 ) {
+                count++;
+            }
+        }
+        return count;
+    };
+
+    while( true ) {
+        uilist menu;
+        menu.title = string_format( _( "Colony job board (%s)" ), camp_name() );
+        menu.desc_enabled = true;
+        menu.addentry_desc( 0, true, 'W', _( "Per-worker priorities…" ),
+                            _( "Open the existing per-NPC job assignment screen." ) );
+        menu.addentry_desc( 1, true, 'C', _( "Clear all colony priorities" ),
+                            _( "Disable every local job for all residents." ) );
+        int entry = 2;
+        for( const activity_id &job : job_list ) {
+            player_activity sample( job );
+            const int pri = colony_priority( job );
+            const int supply = workers_on_job( job );
+            const std::string label = string_format( _( "%s  [priority %d]  (%d/%d residents)" ),
+                                      sample.get_verb(), pri, supply,
+                                      static_cast<int>( residents.size() ) );
+            const std::string desc = string_format(
+                                         _( "Set colony-wide priority for this job.  Residents claim work via zones and ACT_MULTIPLE activities when priority is above 0." ) );
+            menu.addentry_desc( entry++, true, MENU_AUTOASSIGN, label, desc );
+        }
+        menu.query();
+        if( menu.ret < 0 ) {
+            break;
+        }
+        if( menu.ret == 0 ) {
+            job_assignment_ui();
+            // Refresh resident list after possible reassignment.
+            residents.clear();
+            for( const npc_ptr &elem : get_npcs_assigned() ) {
+                if( elem ) {
+                    residents.push_back( elem.get() );
+                }
+            }
+            if( residents.empty() ) {
+                popup( _( "No residents are assigned to this colony camp." ) );
+                break;
+            }
+            continue;
+        }
+        if( menu.ret == 1 ) {
+            for( npc *guy : residents ) {
+                guy->job.clear_all_priorities();
+            }
+            popup( _( "Cleared all job priorities for %d residents." ), residents.size() );
+            continue;
+        }
+        const size_t job_idx = static_cast<size_t>( menu.ret - 2 );
+        if( job_idx >= job_list.size() ) {
+            break;
+        }
+        const activity_id &sel = job_list[job_idx];
+        player_activity sample( sel );
+        int priority = colony_priority( sel );
+        if( !query_int( priority, false, _( "Colony priority for %s (0 disables):" ),
+                        sample.get_verb() ) ) {
+            continue;
+        }
+        priority = std::max( 0, priority );
+        for( npc *guy : residents ) {
+            guy->job.set_task_priority( sel, priority );
+        }
+    }
+}
+
+void basecamp::ensure_colony_expedition_provides()
+{
+    auto it = expansions.find( base_camps::base_dir );
+    if( it == expansions.end() ) {
+        expansion_data e;
+        e.type = "camp";
+        e.cur_level = -1;
+        e.pos = omt_pos;
+        expansions[base_camps::base_dir] = e;
+        it = expansions.find( base_camps::base_dir );
+    }
+    static const std::array<const char *, 4> needed = {
+        "gathering", "hunting", "scouting", "recruiting"
+    };
+    for( const char *provide : needed ) {
+        if( it->second.provides.find( provide ) == it->second.provides.end() ) {
+            it->second.provides[provide] = 1;
+        }
+    }
+}
+
+bool basecamp::colony_loot_return( const mission_id &miss_id )
+{
+    npc_ptr comp = companion_choose_return( miss_id, 3_hours );
+    if( comp == nullptr ) {
+        return false;
+    }
+
+    tripoint_abs_omt site = omt_pos;
+    if( !comp->companion_mission_points.empty() ) {
+        site = comp->companion_mission_points.front();
+    }
+
+    std::string task_description = _( "looting supplies" );
+    if( one_in( 12 ) && !survive_random_encounter( *comp, task_description, 1, 14 ) ) {
+        return false;
+    }
+
+    // Prefer the current terrain as the post-loot marker so commercial tiles are not
+    // rewritten to "looted_house"; items are still removed from the map.
+    const oter_str_id looted_replacement = overmap_buffer.ter( site ).id();
+    overmap_buffer.reveal( site, 2 );
+    std::set<item> returned = talk_function::loot_building( site, looted_replacement );
+
+    const std::string msg = _( "returns from a loot expedition with scavenged supplies…" );
+    finish_return( *comp, true, msg, skill_survival.str(), 2 );
+
+    int brought = 0;
+    for( const item &it : returned ) {
+        place_results( it );
+        brought++;
+    }
+    if( brought == 0 ) {
+        popup( _( "%s found little worth bringing back from %s." ),
+               comp->get_name(), looted_replacement.str() );
+    } else {
+        popup( _( "%s returns with %d items from %s." ),
+               comp->get_name(), brought, looted_replacement.str() );
+    }
+    return true;
 }
 
 void basecamp::start_menial_labor()
@@ -3892,6 +4214,11 @@ bool basecamp::menial_return( const mission_id &miss_id )
 
 bool basecamp::gathering_return( const mission_id &miss_id, time_duration min_time )
 {
+    if( miss_id.id == Camp_Gather_Materials &&
+        miss_id.parameters.compare( 0, 11, "colony_loot" ) == 0 ) {
+        return colony_loot_return( miss_id );
+    }
+
     npc_ptr comp = companion_choose_return( miss_id, min_time );
     if( comp == nullptr ) {
         return false;

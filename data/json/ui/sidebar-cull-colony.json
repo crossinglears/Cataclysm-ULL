@@ -1,0 +1,33 @@
+[
+  {
+    "id": "cull_datetime_layout",
+    "type": "widget",
+    "style": "layout",
+    "label": { "ctxt": "UI sidebar", "str": "Date / Time" },
+    "arrange": "rows",
+    "widgets": [ "date_desc_label", "time_desc_label" ]
+  },
+  {
+    "id": "cull_place_weather_layout",
+    "type": "widget",
+    "style": "layout",
+    "label": { "ctxt": "UI sidebar", "str": "Place / Weather" },
+    "arrange": "rows",
+    "widgets": [ "place_desc", "weather_desc" ]
+  },
+  {
+    "id": "cull_colony_sidebar",
+    "type": "widget",
+    "style": "sidebar",
+    "label": "colony",
+    "separator": ": ",
+    "padding": 2,
+    "width": 44,
+    "//": "God-mode leadership sidebar: environment only. Log + Map are appended in C++.",
+    "widgets": [
+      "cull_place_weather_layout",
+      "cull_datetime_layout",
+      "wind_temp_layout"
+    ]
+  }
+]

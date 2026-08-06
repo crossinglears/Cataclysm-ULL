@@ -55,6 +55,7 @@
 #include "move_mode.h"
 #include "npc.h"
 #include "npc_opinion.h"
+#include "options.h"
 #include "output.h"
 #include "overmapbuffer.h"
 #include "pathfinding.h"
@@ -153,6 +154,10 @@ avatar &avatar::operator=( avatar && ) = default;
 
 void avatar::control_npc( npc &np, const bool debug )
 {
+    if( get_option<bool>( "CULL_COLONY" ) ) {
+        popup( _( "You lead from above — you cannot see through a survivor's eyes." ) );
+        return;
+    }
     if( !np.is_player_ally() ) {
         debugmsg( "control_npc() called on non-allied npc %s", np.name );
         return;
@@ -190,6 +195,10 @@ void avatar::control_npc( npc &np, const bool debug )
 
 void avatar::control_npc_menu( const bool debug )
 {
+    if( get_option<bool>( "CULL_COLONY" ) ) {
+        popup( _( "You lead from above — you cannot see through a survivor's eyes." ) );
+        return;
+    }
     std::vector<shared_ptr_fast<npc>> followers;
     uilist charmenu;
     int charnum = 0;

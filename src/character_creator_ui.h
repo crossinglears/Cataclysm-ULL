@@ -1,3 +1,7 @@
+/**
+ * ARCHIVED (CULL): Solo character creator ImGui UI.
+ * Not a live play path — see doc/CULL/Gameplay.md and doc/CULL/TechnicalDesign.md.
+ */
 #include <memory>
 
 #include "avatar.h"

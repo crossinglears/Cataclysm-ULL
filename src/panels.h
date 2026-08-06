@@ -134,6 +134,8 @@ class panel_manager
         widget *get_current_sidebar();
         widget *get_sidebar( const std::string &name );
         std::string get_current_layout_id() const;
+        /** Switch sidebar layout by widget id (e.g. "cull_colony_sidebar"). No-op if unknown. */
+        void set_current_layout( const std::string &layout_id );
         int get_width_right() const;
         int get_width_left() const;
 

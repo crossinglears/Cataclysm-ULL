@@ -264,6 +264,14 @@ enum action_id : int {
     ACTION_MISSIONS,
     /** Display factions screen */
     ACTION_FACTIONS,
+    /** CULL: colony construction / blueprint panel */
+    ACTION_COLONY_CONSTRUCTION,
+    /** CULL: colony expedition planner */
+    ACTION_COLONY_EXPEDITIONS,
+    /** CULL: colony defense / tactical orders panel */
+    ACTION_COLONY_COMBAT,
+    /** CULL: colony leadership hub (Phase 7) */
+    ACTION_COLONY_HUB,
     /** Displays morale menu */
     ACTION_MORALE,
     /** Displays medical menu */

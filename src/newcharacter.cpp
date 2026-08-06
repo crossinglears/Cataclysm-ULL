@@ -1,3 +1,9 @@
+/**
+ * ARCHIVED (CULL): Solo character creation UI.
+ * Not reachable from New Game / Play. Kept compiling for tests/tools and as
+ * reference for the archived solo loop — see doc/CULL/Gameplay.md.
+ * Do not re-wire Custom / Preset / Random / Play Now into main_menu.
+ */
 #include "avatar.h" // IWYU pragma: associated
 
 #include <algorithm>

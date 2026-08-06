@@ -38,6 +38,8 @@ class main_menu
         std::vector< std::vector<std::string> > vWorldHotkeys;
         std::vector<std::string> vSettingsSubItems;
         std::vector< std::vector<std::string> > vSettingsHotkeys;
+        std::vector<std::string> vHelpSubItems;
+        std::vector< std::vector<std::string> > vHelpHotkeys;
         std::vector< std::vector<std::string> > vMenuHotkeys; // hotkeys for the vMenuItems
         std::vector< std::vector<std::string> > vNewGameHotkeys;
         std::string vdaytip; //tip of the day
@@ -60,9 +62,14 @@ class main_menu
         // Tab functions. They return whether a game was started or not. The ones that can never
         // start a game have a void return type.
         bool load_game( std::string const &worldname, save_t const &savegame );
-        bool new_character_tab();
-        bool load_character_tab( const std::string &worldname );
+        bool new_colony_tab();
+        bool load_colony_tab( const std::string &worldname );
         void world_tab( const std::string &worldname );
+        /** Nested Help → United Lifeline feature topics. */
+        void united_lifeline_help_menu();
+
+        /** World names marked as CULL colony saves (for Play menu). */
+        std::vector<std::string> colony_world_names() const;
 
         /*
          * Load character templates from template folder
@@ -73,7 +80,7 @@ class main_menu
         // TODO: But this is an ugly short-term solution.
         input_context ctxt;
         int sel1 = 1;
-        int sel2 = 1;
+        int sel2 = 0;
         size_t last_world_pos = 0;
         int sub_opt_off = 0;
         point LAST_TERM;

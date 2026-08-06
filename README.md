@@ -19,6 +19,10 @@ We also have the following build guides:
 * Building on Windows with `vcpkg` at [COMPILING-VS-VCPKG.md](doc/c++/COMPILING-VS-VCPKG.md)
 * Building with `cmake` at [COMPILING-CMAKE.md](doc/c++/COMPILING-CMAKE.md)  (*unofficial guide*)
 
+## CULL design docs
+
+**Cataclysm: United Lifeline (CULL)** is colony-leadership gameplay only. **New Game** is colony sim setup; **Play** resumes your colony save. There is no singleplayer survivor option. Design docs (including a reference to the archived solo loop) live under [doc/CULL/README.md](doc/CULL/README.md).
+
 ## License
 
 Cataclysm: United Lifeline inherits the Creative Commons Attribution ShareAlike 3.0 license from Cataclysm: Dark Days Ahead. The code and content of the game is free to use, modify, and redistribute for any purpose whatsoever. See https://creativecommons.org/licenses/by-sa/3.0/ for details.

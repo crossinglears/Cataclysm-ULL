@@ -37,6 +37,8 @@
 #include "units_fwd.h"
 #include "weather.h"
 
+struct colony_setup_options;
+
 // The reference to the one and only game instance.
 class game;
 
@@ -954,6 +956,8 @@ class game
         // Data Initialization
         void init_autosave();     // Initializes autosave parameters
         void create_starting_npcs(); // Creates NPCs that start near you
+        /** Phase 1–7 CULL: spawn starter residents and bootstrap the colony basecamp. */
+        void seed_colony_start( const colony_setup_options &opts );
         // create vehicle nearby, for example; for a profession vehicle.
         vehicle *place_vehicle_nearby(
             const vproto_id &id, const point_abs_omt &origin, int min_distance,

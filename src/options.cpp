@@ -227,6 +227,7 @@ options_manager::options_manager()
         pages_.emplace_back( "world_default", to_translation( "World Defaults" ) );
         pages_.emplace_back( "debug", to_translation( "Debug" ) );
     }
+    pages_.emplace_back( "united_lifeline", to_translation( "United Lifeline" ) );
 
 #if defined(__ANDROID__)
     pages_.emplace_back( "android", to_translation( "Android" ) );
@@ -1498,6 +1499,7 @@ void options_manager::init()
     add_options_graphics();
     add_options_world_default();
     add_options_debug();
+    add_options_united_lifeline();
     add_options_android();
 
     for( Page &p : pages_ ) {
@@ -2840,6 +2842,9 @@ void options_manager::add_options_world_default()
     }, "reset"
        );
 
+    // Set programmatically when starting a CULL colony; not shown in world settings UI.
+    add( "CULL_COLONY", "world_default", translation(), translation(), false, COPT_ALWAYS_HIDE );
+
     add_empty_line();
 
     // These optiosn are purposefully and permanently hidden. It can only be modified through the sliders when creating a new world.
@@ -2966,6 +2971,15 @@ void options_manager::add_options_debug()
          false
 #endif
        );
+}
+
+void options_manager::add_options_united_lifeline()
+{
+    add_option_group( "united_lifeline", Group( "cull_colony_opts",
+                      to_translation( "Colony options" ),
+                      to_translation( "Options for United Lifeline colony management." ) ),
+    [&]( const std::string & /*page_id*/ ) {
+    } );
 }
 
 void options_manager::add_options_android()

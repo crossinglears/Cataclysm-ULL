@@ -29,6 +29,12 @@
 #include "character_martial_arts.h"
 #include "clzones.h"
 #include "color.h"
+#include "colony_camera.h"
+#include "colony_combat.h"
+#include "colony_construction.h"
+#include "colony_expeditions.h"
+#include "colony_setup.h"
+#include "colony_toolbar.h"
 #include "construction.h"
 #include "creature_tracker.h"
 #include "cursesdef.h"
@@ -245,6 +251,9 @@ input_context game::get_player_input( std::string &action )
 
     const tripoint_bub_ms pos = u.pos_bub( here );
 
+    // Show leadership buttons in colony worlds; tear down if we left one.
+    ensure_colony_toolbar();
+
     input_context ctxt;
     if( uquit == QUIT_WATCH ) {
         ctxt = input_context( "DEFAULTMODE", keyboard_mode::keycode );
@@ -458,12 +467,28 @@ input_context game::get_player_input( std::string &action )
             }
 
             ui_manager::redraw_invalidated();
+
+            // ImGui colony toolbar buttons set an action during draw; honor it
+            // before waiting on the next keyboard/mouse event.
+            if( const std::string toolbar_action = colony_toolbar_poll_action();
+                !toolbar_action.empty() ) {
+                action = toolbar_action;
+                liveview.hide();
+                break;
+            }
         } while( handle_mouseview( ctxt, action ) && uquit != QUIT_WATCH
                  && ( action != "TIMEOUT" || !current_turn.has_timeout_elapsed() ) );
         ctxt.reset_timeout();
     } else {
         ctxt.set_timeout( 125 );
         while( handle_mouseview( ctxt, action ) ) {
+            ui_manager::redraw_invalidated();
+            if( const std::string toolbar_action = colony_toolbar_poll_action();
+                !toolbar_action.empty() ) {
+                action = toolbar_action;
+                liveview.hide();
+                break;
+            }
             if( action == "TIMEOUT" && current_turn.has_timeout_elapsed() ) {
                 break;
             }
@@ -2180,9 +2205,13 @@ static void do_deathcam_action( const action_id &act, avatar &player_character )
 {
     switch( act ) {
         case ACTION_CENTER:
-            player_character.view_offset.x() = g->driving_view_offset.x();
-            player_character.view_offset.y() = g->driving_view_offset.y();
-            player_character.view_offset.z() = 0;
+            if( is_colony_god_mode() ) {
+                colony_god_center_view( player_character );
+            } else {
+                player_character.view_offset.x() = g->driving_view_offset.x();
+                player_character.view_offset.y() = g->driving_view_offset.y();
+                player_character.view_offset.z() = 0;
+            }
             break;
 
         case ACTION_SHIFT_N:
@@ -2434,6 +2463,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
         case ACTION_MOVE_BACK_LEFT:
         case ACTION_MOVE_LEFT:
         case ACTION_MOVE_FORTH_LEFT:
+            // Colony god mode: arrows pan the camera only (no body move, no fog reveal).
+            if( colony_god_handle_move( act, player_character ) ) {
+                break;
+            }
             if( player_character.maybe_get_value( "remote_controlling" ) &&
                 ( player_character.has_active_item( itype_radiocontrol ) ||
                   player_character.has_active_bionic( bio_remote ) ) ) {
@@ -2563,6 +2596,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             }
             break;
         case ACTION_MOVE_DOWN: {
+            // Colony god mode: free Z view, ignore stairs / floors.
+            if( colony_god_handle_vertical( act, player_character ) ) {
+                break;
+            }
             if( player_character.is_mounted() ) {
                 auto *mon = player_character.mounted_creature.get();
                 if( !mon->has_flag( mon_flag_RIDEABLE_MECH ) ) {
@@ -2621,6 +2658,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
         }
 
         case ACTION_MOVE_UP:
+            // Colony god mode: free Z view, ignore stairs / ceilings.
+            if( colony_god_handle_vertical( act, player_character ) ) {
+                break;
+            }
             if( player_character.is_mounted() ) {
                 auto *mon = player_character.mounted_creature.get();
                 if( !mon->has_flag( mon_flag_RIDEABLE_MECH ) ) {
@@ -3082,6 +3123,22 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
 
         case ACTION_FACTIONS:
             faction_manager_ptr->display();
+            break;
+
+        case ACTION_COLONY_CONSTRUCTION:
+            colony_construction_menu();
+            break;
+
+        case ACTION_COLONY_EXPEDITIONS:
+            colony_expeditions_menu();
+            break;
+
+        case ACTION_COLONY_COMBAT:
+            colony_combat_menu();
+            break;
+
+        case ACTION_COLONY_HUB:
+            colony_hub_menu();
             break;
 
         case ACTION_MORALE:

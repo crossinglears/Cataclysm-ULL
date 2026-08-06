@@ -1,0 +1,59 @@
+[
+  {
+    "type": "item_group",
+    "id": "cull_colony_gear_sparse",
+    "subtype": "collection",
+    "//": "Phase 7 sparse starter crate — minimal tools for early facilities.",
+    "entries": [
+      { "item": "hammer", "count": 1 },
+      { "item": "saw", "count": 1 },
+      { "item": "nail", "count": [ 20, 40 ] },
+      { "item": "2x4", "count": [ 4, 8 ] },
+      { "item": "flashlight", "count": 1 },
+      { "item": "water_clean", "container-item": "bottle_plastic", "count": 2 },
+      { "item": "can_beans", "count": [ 2, 4 ] }
+    ]
+  },
+  {
+    "type": "item_group",
+    "id": "cull_colony_gear_standard",
+    "subtype": "collection",
+    "//": "Phase 7 standard starter crate — workable toolkit for camp bootstrap.",
+    "entries": [
+      { "item": "hammer", "count": 1 },
+      { "item": "saw", "count": 1 },
+      { "item": "screwdriver", "count": 1 },
+      { "item": "nail", "count": [ 50, 100 ] },
+      { "item": "2x4", "count": [ 10, 20 ] },
+      { "item": "rope_6", "count": [ 1, 2 ] },
+      { "item": "tarp", "count": 1 },
+      { "item": "flashlight", "count": 2 },
+      { "item": "water_clean", "container-item": "bottle_plastic", "count": 4 },
+      { "item": "can_beans", "count": [ 6, 10 ] },
+      { "item": "bandages", "count": [ 4, 8 ] }
+    ]
+  },
+  {
+    "type": "item_group",
+    "id": "cull_colony_gear_well_supplied",
+    "subtype": "collection",
+    "//": "Phase 7 well-supplied crate — extra materials to kickstart workshops and defense.",
+    "entries": [
+      { "item": "hammer", "count": 2 },
+      { "item": "saw", "count": 1 },
+      { "item": "screwdriver", "count": 1 },
+      { "item": "wrench", "count": 1 },
+      { "item": "nail", "count": [ 100, 200 ] },
+      { "item": "2x4", "count": [ 20, 40 ] },
+      { "item": "rope_6", "count": [ 2, 4 ] },
+      { "item": "tarp", "count": 2 },
+      { "item": "sheet_metal", "count": [ 4, 8 ] },
+      { "item": "pipe", "count": [ 4, 8 ] },
+      { "item": "flashlight", "count": 3 },
+      { "item": "water_clean", "container-item": "bottle_plastic", "count": 8 },
+      { "item": "can_beans", "count": [ 12, 20 ] },
+      { "item": "bandages", "count": [ 10, 16 ] },
+      { "item": "aspirin", "count": [ 5, 10 ] }
+    ]
+  }
+]

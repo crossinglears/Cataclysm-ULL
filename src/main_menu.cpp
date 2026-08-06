@@ -27,8 +27,9 @@
 #include "cata_scope_helpers.h"
 #include "cata_utility.h"
 #include "catacharset.h"
-#include "character_id.h"
 #include "color.h"
+#include "colony_camera.h"
+#include "colony_setup.h"
 #include "debug.h"
 #include "enums.h"
 #include "filesystem.h"
@@ -62,9 +63,6 @@
 #include "wcwidth.h"
 #include "worldfactory.h"
 
-static const mod_id MOD_INFORMATION_dda( "dda" );
-static const mod_id MOD_INFORMATION_dda_tutorial( "dda_tutorial" );
-
 namespace
 {
 enum class main_menu_opts : int {
@@ -72,13 +70,32 @@ enum class main_menu_opts : int {
     NEWCHAR,
     LOADCHAR,
     WORLD,
-    TUTORIAL,
     SETTINGS,
     HELP,
     CREDITS,
     QUIT,
     NUM_MENU_OPTS,
 };
+
+/** Phase 7 default survivor count lives on colony_setup_options. */
+
+bool world_is_colony( const WORLD &world )
+{
+    const auto it = world.WORLD_OPTIONS.find( "CULL_COLONY" );
+    if( it == world.WORLD_OPTIONS.end() ) {
+        return false;
+    }
+    return it->second.value_as<bool>();
+}
+
+/** Phase 7: legacy solo Cataclysm worlds are not playable; manage/delete via World. */
+std::string legacy_solo_save_policy_msg()
+{
+    return _(
+               "This is a legacy solo Cataclysm save, not a CULL colony world.\n\n"
+               "Play only loads colony worlds (CULL_COLONY).  There is no automatic migration.\n"
+               "Delete or reset the world from the World menu, or start a new colony from New Game." );
+}
 } // namespace
 
 std::string main_menu::queued_world_to_load;
@@ -200,6 +217,16 @@ void main_menu::display_sub_menu( int sel, const point &bottom_left, int sel_lin
                 }
             }
             break;
+        case main_menu_opts::HELP:
+            for( int i = 0; static_cast<size_t>( i ) < vHelpSubItems.size(); ++i ) {
+                nc_color clr = i == sel2 ? hilite( c_yellow ) : c_yellow;
+                sub_opts.push_back( shortcut_text( clr, vHelpSubItems[i] ) );
+                int len = utf8_width( shortcut_text( clr, vHelpSubItems[i] ), true );
+                if( len > xlen ) {
+                    xlen = len;
+                }
+            }
+            break;
         case main_menu_opts::NEWCHAR:
             for( int i = 0; static_cast<size_t>( i ) < vNewGameSubItems.size(); i++ ) {
                 nc_color clr = i == sel2 ? hilite( c_yellow ) : c_yellow;
@@ -218,23 +245,44 @@ void main_menu::display_sub_menu( int sel, const point &bottom_left, int sel_lin
                 xlen = utf8_width( sub_opts.back(), true );
             }
             int i = 0;
-            for( const auto& [name, world] : world_generator->get_all_worlds() ) {
-                int savegames_count = world->world_saves.size();
-                nc_color clr = c_white;
-                if( name == "TUTORIAL" || name == "DEFENSE" ) {
-                    clr = c_light_cyan;
+            if( sel_o == main_menu_opts::LOADCHAR ) {
+                for( const std::string &name : colony_world_names() ) {
+                    WORLD *world = world_generator->get_world( name );
+                    int savegames_count = world ? static_cast<int>( world->world_saves.size() ) : 0;
+                    nc_color clr = c_white;
+                    sub_opts.push_back( colorize( string_format( "%s (%d)", name, savegames_count ),
+                                                  sel2 == i ? hilite( clr ) : clr ) );
+                    int len = utf8_width( sub_opts.back(), true );
+                    if( len > xlen ) {
+                        xlen = len;
+                    }
+                    i++;
                 }
-                sub_opts.push_back( colorize( string_format( "%s (%d)", name, savegames_count ),
-                                              ( sel2 == i + ( extra_opt ? 1 : 0 ) ) ? hilite( clr ) : clr ) );
-                int len = utf8_width( sub_opts.back(), true );
-                if( len > xlen ) {
-                    xlen = len;
+            } else {
+                for( const auto& [name, world] : world_generator->get_all_worlds() ) {
+                    int savegames_count = world->world_saves.size();
+                    nc_color clr = c_white;
+                    std::string label = name;
+                    if( name == "TUTORIAL" || name == "DEFENSE" ) {
+                        clr = c_light_cyan;
+                    } else if( world_is_colony( *world ) ) {
+                        clr = c_light_green;
+                        label = string_format( _( "%s [colony]" ), name );
+                    } else {
+                        clr = c_dark_gray;
+                        label = string_format( _( "%s [legacy]" ), name );
+                    }
+                    sub_opts.push_back( colorize( string_format( "%s (%d)", label, savegames_count ),
+                                                  ( sel2 == i + ( extra_opt ? 1 : 0 ) ) ? hilite( clr ) : clr ) );
+                    int len = utf8_width( sub_opts.back(), true );
+                    if( len > xlen ) {
+                        xlen = len;
+                    }
+                    i++;
                 }
-                i++;
             }
         }
         break;
-        case main_menu_opts::HELP:
         case main_menu_opts::QUIT:
         default:
             return;
@@ -461,9 +509,8 @@ void main_menu::init_strings()
     vMenuItems.clear();
     vMenuItems.emplace_back( pgettext( "Main Menu", "<M|m>OTD" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "<N|n>ew Game" ) );
-    vMenuItems.emplace_back( pgettext( "Main Menu", "Lo<a|A>d" ) );
+    vMenuItems.emplace_back( pgettext( "Main Menu", "<P|p>lay" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "<W|w>orld" ) );
-    vMenuItems.emplace_back( pgettext( "Main Menu", "T<u|U>torial Game" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "Se<t|T>tings" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "H<e|E|?>lp" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "<C|c>redits" ) );
@@ -471,26 +518,12 @@ void main_menu::init_strings()
     vMenuItems.emplace_back( pgettext( "Main Menu", "<Q|q>uit" ) );
 #endif
 
-    // new game menu items
+    // New Game: colony sim options only (no solo character starts)
     vNewGameSubItems.clear();
-    vNewGameSubItems.emplace_back( pgettext( "Main Menu|New Game", "C<u|U>stom Character" ) );
-    vNewGameSubItems.emplace_back( pgettext( "Main Menu|New Game", "<P|p>reset Character" ) );
-    vNewGameSubItems.emplace_back( pgettext( "Main Menu|New Game", "<R|r>andom Character" ) );
-    if( !MAP_SHARING::isSharing() ) { // "Play Now" function doesn't play well together with shared maps
-        vNewGameSubItems.emplace_back( pgettext( "Main Menu|New Game",
-                                       "Play Now!  (<D|d>efault Scenario)" ) );
-        vNewGameSubItems.emplace_back( pgettext( "Main Menu|New Game", "Play N<o|O>w!" ) );
-    }
+    vNewGameSubItems.emplace_back( pgettext( "Main Menu|New Game", "<S|s>tart Colony" ) );
     vNewGameHints.clear();
     vNewGameHints.emplace_back(
-        _( "Allows you to fully customize scenario, character's profession, stats, traits, skills and other parameters." ) );
-    vNewGameHints.emplace_back( _( "Select from one of previously created character templates." ) );
-    vNewGameHints.emplace_back(
-        _( "Creates random character, but lets you preview the generated character and the scenario and change character and/or scenario if needed." ) );
-    vNewGameHints.emplace_back(
-        _( "Puts you right in the game, randomly choosing character's traits, profession, skills and other parameters.  Scenario is fixed to Evacuee." ) );
-    vNewGameHints.emplace_back(
-        _( "Puts you right in the game, randomly choosing scenario and character's traits, profession, skills and other parameters." ) );
+        _( "Configure survivors, backgrounds, gear, location, and difficulty, then start your colony." ) );
     vNewGameHotkeys.clear();
     vNewGameHotkeys.reserve( vNewGameSubItems.size() );
     for( const std::string &item : vNewGameSubItems ) {
@@ -506,7 +539,6 @@ void main_menu::init_strings()
     vWorldSubItems.clear();
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Sh<o|O>w World Mods" ) );
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Copy World Sett<i|I>ngs" ) );
-    vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Character to Tem<p|P>late" ) );
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Toggle World <C|c>ompression" ) );
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "<D|d>elete World" ) );
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "<R|r>eset World" ) );
@@ -528,6 +560,15 @@ void main_menu::init_strings()
     vSettingsHotkeys.clear();
     for( const std::string &item : vSettingsSubItems ) {
         vSettingsHotkeys.push_back( get_hotkeys( item ) );
+    }
+
+    vHelpSubItems.clear();
+    vHelpSubItems.emplace_back( pgettext( "Main Menu|Help", "<G|g>eneral" ) );
+    vHelpSubItems.emplace_back( pgettext( "Main Menu|Help", "<U|u>nited Lifeline" ) );
+
+    vHelpHotkeys.clear();
+    for( const std::string &item : vHelpSubItems ) {
+        vHelpHotkeys.push_back( get_hotkeys( item ) );
     }
 
     try {
@@ -620,12 +661,15 @@ bool main_menu::opening_screen()
 
     int sel_line = 0;
 
-    // Make [Load Game] the default cursor position if there's game save available
-    if( !world_generator->get_all_worlds().empty() ) {
-        std::vector<std::string> worlds = world_generator->all_worldnames();
-        last_world_pos = world_generator->get_world_index( world_generator->last_world_name );
-        if( last_world_pos >= worlds.size() ) {
-            last_world_pos = 0;
+    // Make [Play] the default cursor position if there's a colony save available
+    const std::vector<std::string> colony_worlds = colony_world_names();
+    if( !colony_worlds.empty() ) {
+        last_world_pos = 0;
+        for( size_t i = 0; i < colony_worlds.size(); i++ ) {
+            if( colony_worlds[i] == world_generator->last_world_name ) {
+                last_world_pos = i;
+                break;
+            }
         }
         sel1 = getopt( main_menu_opts::LOADCHAR );
         sel2 = last_world_pos;
@@ -667,7 +711,7 @@ bool main_menu::opening_screen()
         } catch( bool has_save ) {
             load_game = has_save;
             if( world_to_load ) {
-                popup( _( "%s has no characters to load!" ), world_to_load->world_name );
+                popup( _( "%s has no colony to load!" ), world_to_load->world_name );
             }
         }
     }
@@ -689,9 +733,7 @@ bool main_menu::opening_screen()
                     sel1 = i;
                     sel2 = i == getopt( main_menu_opts::LOADCHAR ) ? last_world_pos : 0;
                     sel_line = 0;
-                    if( i == getopt( main_menu_opts::HELP ) ) {
-                        action = "CONFIRM";
-                    } else if( i == getopt( main_menu_opts::QUIT ) ) {
+                    if( i == getopt( main_menu_opts::QUIT ) ) {
                         action = "QUIT";
                     }
                     match = true;
@@ -723,6 +765,18 @@ bool main_menu::opening_screen()
                 }
             }
         }
+        if( sel1 == getopt( main_menu_opts::HELP ) ) {
+            for( int i = 0; !match && static_cast<size_t>( i ) < vHelpSubItems.size(); ++i ) {
+                for( const std::string &hotkey : vHelpHotkeys[i] ) {
+                    if( sInput.text == hotkey ) {
+                        sel2 = i;
+                        action = "CONFIRM";
+                        match = true;
+                        break;
+                    }
+                }
+            }
+        }
 
         // handle mouse click
         if( action == "SELECT" || action == "MOUSE_MOVE" ) {
@@ -735,8 +789,7 @@ bool main_menu::opening_screen()
                         sel_line = 0;
                         on_move();
                     }
-                    if( action == "SELECT" &&
-                        ( sel1 == getopt( main_menu_opts::HELP ) || sel1 == getopt( main_menu_opts::QUIT ) ) ) {
+                    if( action == "SELECT" && sel1 == getopt( main_menu_opts::QUIT ) ) {
                         action = "CONFIRM";
                     }
                     ui_manager::redraw();
@@ -798,7 +851,7 @@ bool main_menu::opening_screen()
                     }
                     break;
                 case main_menu_opts::LOADCHAR:
-                    max_item_count = world_generator->get_all_worlds().size();
+                    max_item_count = colony_world_names().size();
                     break;
                 case main_menu_opts::WORLD:
                     // extra 1 = "Create New World"
@@ -810,8 +863,9 @@ bool main_menu::opening_screen()
                 case main_menu_opts::SETTINGS:
                     max_item_count = vSettingsSubItems.size();
                     break;
-                case main_menu_opts::TUTORIAL:
                 case main_menu_opts::HELP:
+                    max_item_count = vHelpSubItems.size();
+                    break;
                 case main_menu_opts::QUIT:
                 default:
                     break;
@@ -833,46 +887,14 @@ bool main_menu::opening_screen()
         } else if( action == "CONFIRM" ) {
             switch( static_cast<main_menu_opts>( sel1 ) ) {
                 case main_menu_opts::HELP:
-                    get_help().display_help();
+                    if( sel2 == 0 ) { /// General
+                        get_help().display_help();
+                    } else if( sel2 == 1 ) { /// United Lifeline
+                        united_lifeline_help_menu();
+                    }
                     break;
                 case main_menu_opts::QUIT:
                     return false;
-                case main_menu_opts::TUTORIAL:
-                    if( MAP_SHARING::isSharing() ) {
-                        on_error();
-                        popup( _( "Tutorial doesn't work with shared maps." ) );
-                    } else {
-                        on_out_of_scope cleanup( [&player_character]() {
-                            g->gamemode.reset();
-                            player_character = avatar();
-                            world_generator->set_active_world( nullptr );
-                        } );
-                        g->gamemode = get_special_game( special_game_type::TUTORIAL );
-                        // check world
-                        WORLD *world = world_generator->make_new_world( special_game_type::TUTORIAL );
-                        if( world == nullptr ) {
-                            break;
-                        }
-                        world->active_mod_order.clear();
-                        world->active_mod_order.emplace_back( MOD_INFORMATION_dda );
-                        world->active_mod_order.emplace_back( MOD_INFORMATION_dda_tutorial );
-                        world_generator->set_active_world( world );
-                        try {
-                            g->setup();
-                        } catch( const std::exception &err ) {
-                            debugmsg( "Error: %s", err.what() );
-                            break;
-                        }
-                        if( !g->gamemode->init() ) {
-                            break;
-                        }
-                        cleanup.cancel();
-                        start = true;
-                        if( g->gametype() == special_game_type::TUTORIAL ) {
-                            load_game = true;
-                        }
-                    }
-                    break;
                 case main_menu_opts::SETTINGS:
                     if( sel2 == 0 ) {        /// Options
                         get_options().show( false );
@@ -899,18 +921,20 @@ bool main_menu::opening_screen()
                     sel2 = std::min<int>( sel2, world_generator->get_all_worlds().size() );
                     world_tab( sel2 > 0 ? world_generator->get_world_name( sel2 - 1 ) : "" );
                     break;
-                case main_menu_opts::LOADCHAR:
-                    if( static_cast<std::size_t>( sel2 ) < world_generator->get_all_worlds().size() ) {
-                        start = load_character_tab( world_generator->get_world_name( sel2 ) );
+                case main_menu_opts::LOADCHAR: {
+                    const std::vector<std::string> worlds = colony_world_names();
+                    if( static_cast<std::size_t>( sel2 ) < worlds.size() ) {
+                        start = load_colony_tab( worlds[sel2] );
                         if( start ) {
                             load_game = true;
                         }
                     } else {
-                        popup( _( "No world to load." ) );
+                        popup( _( "No colony to load." ) );
                     }
-                    break;
+                }
+                break;
                 case main_menu_opts::NEWCHAR:
-                    start = new_character_tab();
+                    start = new_colony_tab();
                     break;
                 case main_menu_opts::MOTD:
                 case main_menu_opts::CREDITS:
@@ -932,140 +956,64 @@ bool main_menu::opening_screen()
     return true;
 }
 
-bool main_menu::new_character_tab()
+bool main_menu::new_colony_tab()
 {
     avatar &pc = get_avatar();
-    // Preset character templates
-    if( sel2 == 1 ) {
-        if( templates.empty() ) {
-            on_error();
-            popup( _( "No templates found!" ) );
-            return false;
-        }
-        while( true ) {
-            uilist mmenu( _( "Choose a preset character template" ), {} );
-            mmenu.border_color = c_white;
-            int opt_val = 0;
-            for( const std::string &tmpl : templates ) {
-                mmenu.entries.emplace_back( opt_val++, true, MENU_AUTOASSIGN, tmpl );
-            }
-            mmenu.entries.emplace_back( opt_val, true, 'q', _( "<- Back to Main Menu" ), c_yellow, c_yellow );
-            mmenu.query();
-            opt_val = mmenu.ret;
-            if( opt_val < 0 || static_cast<size_t>( opt_val ) >= templates.size() ) {
-                return false;
-            }
+    on_out_of_scope cleanup( [&pc]() {
+        pc = avatar();
+        world_generator->set_active_world( nullptr );
+    } );
+    g->gamemode = nullptr;
 
-            std::string res = query_popup()
-                              .context( "LOAD_DELETE_CANCEL" ).default_color( c_white )
-                              .message( _( "What to do with template \"%s\"?" ), templates[opt_val] )
-                              .option( "LOAD" ).option( "DELETE" ).option( "CANCEL" ).cursor( 0 )
-                              .query().action;
-            if( res == "DELETE" &&
-                query_yn( _( "Are you sure you want to delete %s?" ), templates[opt_val] ) ) {
-                const auto path = PATH_INFO::templatedir() + templates[opt_val] + ".template";
-                if( !remove_file( path ) ) {
-                    popup( _( "Sorry, something went wrong." ) );
-                } else {
-                    templates.erase( templates.begin() + opt_val );
-                }
-            } else if( res == "LOAD" ) {
-                on_out_of_scope cleanup( [&pc]() {
-                    pc = avatar();
-                    world_generator->set_active_world( nullptr );
-                } );
-                g->gamemode = nullptr;
-                WORLD *world = world_generator->pick_world();
-                if( world == nullptr ) {
-                    continue;
-                }
-                if( !world->world_saves.empty() ) {
-                    if( !query_yn(
-                            _( "Many game features will not work correctly with multiple characters in the same world.  Create a new character anyway?" ) ) ) {
-                        return false;
-                    }
-                }
-
-                world_generator->set_active_world( world );
-                try {
-                    g->setup();
-                } catch( const std::exception &err ) {
-                    debugmsg( "Error: %s", err.what() );
-                    continue;
-                }
-                if( !pc.create( character_type::TEMPLATE, templates[opt_val] ) ) {
-                    load_char_templates();
-                    MAPBUFFER.clear();
-                    overmap_buffer.clear();
-                    return false;
-                }
-                if( !g->start_game() ) {
-                    return false;
-                }
-                cleanup.cancel();
-                return true;
-            }
-
-            if( templates.empty() ) {
-                return false;
-            }
-        }
-    } else { ///Non-template options
-        on_out_of_scope cleanup( [&pc]() {
-            pc = avatar();
-            world_generator->set_active_world( nullptr );
-        } );
-        g->gamemode = nullptr;
-        // First load the mods, this is done by
-        // loading the world.
-        // Pick a world, suppressing prompts if it's "play now" mode.
-        const bool is_play_now = sel2 == 3 || sel2 == 4;
-        WORLD *world = world_generator->pick_world( !is_play_now, is_play_now );
-        if( world == nullptr ) {
-            return false;
-        }
-        if( !world->world_saves.empty() ) {
-            if( !query_yn(
-                    _( "Many game features will not work correctly with multiple characters in the same world.  Create a new character anyway?" ) ) ) {
-                return false;
-            }
-        }
-        world_generator->set_active_world( world );
-        try {
-            g->setup();
-        } catch( const std::exception &err ) {
-            debugmsg( "Error: %s", err.what() );
-            return false;
-        }
-        character_type play_type = character_type::CUSTOM;
-        switch( sel2 ) {
-            case 0:
-                play_type = character_type::CUSTOM;
-                break;
-            case 2:
-                play_type = character_type::RANDOM;
-                break;
-            case 3:
-                play_type = character_type::NOW;
-                break;
-            case 4:
-                play_type = character_type::FULL_RANDOM;
-                break;
-        }
-        if( !pc.create( play_type ) ) {
-            load_char_templates();
-            MAPBUFFER.clear();
-            overmap_buffer.clear();
-            return false;
-        }
-
-        if( !g->start_game() ) {
-            return false;
-        }
-        cleanup.cancel();
-        return true;
+    std::optional<colony_setup_options> setup = colony_setup_ui();
+    if( !setup ) {
+        return false;
     }
-    return false;
+
+    WORLD *world = world_generator->pick_world( true, false );
+    if( world == nullptr ) {
+        return false;
+    }
+    if( !world->world_saves.empty() ) {
+        if( !query_yn(
+                _( "This world already has a colony save.  Starting another may break features that assume one colony per world.  Continue anyway?" ) ) ) {
+            return false;
+        }
+    }
+
+    // Mark as CULL colony world, apply difficulty, and persist before boot
+    world->WORLD_OPTIONS["CULL_COLONY"].setValue( "true" );
+    apply_colony_difficulty_to_world( *world, setup->difficulty );
+    if( !world->save() ) {
+        popup( _( "Failed to save world options." ) );
+        return false;
+    }
+
+    world_generator->set_active_world( world );
+    try {
+        g->setup();
+    } catch( const std::exception &err ) {
+        debugmsg( "Error: %s", err.what() );
+        return false;
+    }
+
+    // Invisible god-mode observer — no character creator UI
+    if( !pc.create( character_type::NOW ) ) {
+        MAPBUFFER.clear();
+        overmap_buffer.clear();
+        return false;
+    }
+    pc.name = _( "Colony Observer" );
+    apply_colony_setup_to_avatar( pc, *setup );
+    ensure_colony_god_avatar( pc );
+
+    if( !g->start_game() ) {
+        return false;
+    }
+
+    g->seed_colony_start( *setup );
+    cleanup.cancel();
+    return true;
 }
 
 bool main_menu::load_game( std::string const &worldname, save_t const &savegame )
@@ -1091,6 +1039,7 @@ bool main_menu::load_game( std::string const &worldname, save_t const &savegame 
     }
 
     if( g->load( savegame ) ) {
+        ensure_colony_god_avatar( get_avatar() );
         cleanup.cancel();
         return true;
     }
@@ -1117,9 +1066,26 @@ static std::optional<std::chrono::seconds> get_playtime_from_save( const WORLD *
     return pt_seconds;
 }
 
-bool main_menu::load_character_tab( const std::string &worldname )
+std::vector<std::string> main_menu::colony_world_names() const
+{
+    std::vector<std::string> names;
+    for( const auto &[name, world] : world_generator->get_all_worlds() ) {
+        if( world && world_is_colony( *world ) && name != "TUTORIAL" && name != "DEFENSE" ) {
+            names.push_back( name );
+        }
+    }
+    return names;
+}
+
+bool main_menu::load_colony_tab( const std::string &worldname )
 {
     WORLD *cur_world = world_generator->get_world( worldname );
+    if( !cur_world || !world_is_colony( *cur_world ) ) {
+        on_error();
+        popup( legacy_solo_save_policy_msg() );
+        return false;
+    }
+
     savegames = cur_world->world_saves;
     if( MAP_SHARING::isSharing() ) {
         auto new_end = std::remove_if( savegames.begin(), savegames.end(), []( const save_t &str ) {
@@ -1131,12 +1097,17 @@ bool main_menu::load_character_tab( const std::string &worldname )
     if( savegames.empty() ) {
         on_error();
         //~ %s = world name
-        popup( _( "%s has no characters to load!" ), worldname );
+        popup( _( "%s has no colony to load!" ), worldname );
         return false;
     }
 
+    // One save per colony world is the expected Phase 1 layout — load it directly.
+    if( savegames.size() == 1 ) {
+        return main_menu::load_game( worldname, savegames[0] );
+    }
+
     uilist mmenu;
-    mmenu.title = string_format( _( "Load character from \"%s\"" ), worldname );
+    mmenu.title = string_format( _( "Load colony from \"%s\"" ), worldname );
     mmenu.border_color = c_white;
     int opt_val = 0;
     for( const save_t &s : savegames ) {
@@ -1164,6 +1135,120 @@ bool main_menu::load_character_tab( const std::string &worldname )
     return main_menu::load_game( worldname, savegames[opt_val] );
 }
 
+void main_menu::united_lifeline_help_menu()
+{
+    struct help_topic {
+        translation name;
+        translation text;
+    };
+
+    static const std::array<help_topic, 9> topics = { {
+            {
+                to_translation( "Overview" ),
+                to_translation(
+                    "Cataclysm: United Lifeline (CULL) is a colony leadership game.\n\n"
+                    "You do not control a single survivor.  You lead a settlement: set priorities, "
+                    "assign work, expand the camp, send expeditions, and hold the perimeter while "
+                    "survivors act as autonomous agents.\n\n"
+                    "New Game starts a colony.  Play resumes your colony save.  There is no "
+                    "singleplayer avatar start." )
+            },
+            {
+                to_translation( "Camera & controls" ),
+                to_translation(
+                    "You observe as an invisible god-mode camera, not a body on the map.\n\n"
+                    "Movement keys pan the view without walking a character and without revealing "
+                    "fog of war.  Move Up / Move Down change the viewed floor freely -- no stairs "
+                    "required.\n\n"
+                    "You cannot possess or see through a survivor's eyes in a colony world." )
+            },
+            {
+                to_translation( "Starting a colony" ),
+                to_translation(
+                    "New Game -> Start Colony opens colony setup: survivor count, background mix, "
+                    "gear level, starting location, and difficulty.\n\n"
+                    "After world creation, starter survivors become camp residents.  The save is "
+                    "marked as a colony world so Play can find it later." )
+            },
+            {
+                to_translation( "Leadership hub" ),
+                to_translation(
+                    "Open the colony leadership hub (default action: colony_hub) for a shortcut "
+                    "menu into overview tools: jobs, construction, expeditions, and defense.\n\n"
+                    "The factions screen (#) also shows your camp stock, residents, expansions, "
+                    "and the job board." )
+            },
+            {
+                to_translation( "Jobs & residents" ),
+                to_translation(
+                    "Survivors work from job priorities on the colony job board (factions -> camp -> "
+                    "job board, or via the leadership hub).\n\n"
+                    "Enable and rank jobs such as farming, hauling, and construction.  Residents "
+                    "eat, rest, and pick work under those priorities.  Configure farm seeds and "
+                    "related zones with the zone manager." )
+            },
+            {
+                to_translation( "Construction" ),
+                to_translation(
+                    "Open Colony Construction (action: colony_construction) to place tile "
+                    "blueprints and queue camp upgrades.\n\n"
+                    "Workers gather and haul real materials from camp and haul zones.  Completed "
+                    "work uses the existing basecamp / construction systems -- there is no separate "
+                    "abstract resource pool." )
+            },
+            {
+                to_translation( "Expeditions" ),
+                to_translation(
+                    "Open Colony Expeditions (action: colony_expeditions) to plan scout, loot, "
+                    "hunt, or recruit companion missions.\n\n"
+                    "Outcomes return real items to camp.  Recruit missions can add survivors to "
+                    "the roster." )
+            },
+            {
+                to_translation( "Defense & combat orders" ),
+                to_translation(
+                    "Open Colony Defense (action: colony_combat) for standing tactical orders: "
+                    "hold, retreat, defend, avoid, and escort.\n\n"
+                    "Set guard posts and retreat zones, and jump into perimeter construction when "
+                    "you need walls and defenses built." )
+            },
+            {
+                to_translation( "Saves & Play" ),
+                to_translation(
+                    "Play lists only colony worlds.  Legacy solo saves stay hidden from Play; "
+                    "you can still manage or delete them under World.\n\n"
+                    "Colony worlds are labeled [colony] in the World menu; legacy saves show as "
+                    "[legacy]." )
+            },
+        }
+    };
+
+    const auto help_window = []() {
+        return catacurses::newwin( FULL_SCREEN_HEIGHT, FULL_SCREEN_WIDTH,
+                                   point( std::max( 0, ( TERMX - FULL_SCREEN_WIDTH ) / 2 ),
+                                          std::max( 0, ( TERMY - FULL_SCREEN_HEIGHT ) / 2 ) ) );
+    };
+
+    while( true ) {
+        uilist menu;
+        menu.title = _( "United Lifeline" );
+        menu.text = _( "Special features for colony leadership." );
+        menu.border_color = c_white;
+        menu.desc_enabled = false;
+        int opt = 0;
+        for( const help_topic &topic : topics ) {
+            menu.entries.emplace_back( opt++, true, MENU_AUTOASSIGN, topic.name.translated() );
+        }
+        menu.entries.emplace_back( opt, true, 'q', _( "<- Back to Help" ), c_yellow, c_yellow );
+        menu.query();
+        if( menu.ret < 0 || static_cast<size_t>( menu.ret ) >= topics.size() ) {
+            return;
+        }
+        const help_topic &chosen = topics[menu.ret];
+        scrollable_text( help_window, chosen.name.translated(), chosen.text.translated() );
+    }
+}
+
 void main_menu::world_tab( const std::string &worldname )
 {
     // Create world
@@ -1176,18 +1261,41 @@ void main_menu::world_tab( const std::string &worldname )
         return;
     }
 
+    WORLD *manage_world = world_generator->get_world( worldname );
+    const bool is_colony = manage_world && world_is_colony( *manage_world );
+
     uilist mmenu( string_format( _( "Manage world \"%s\"" ), worldname ), {} );
     mmenu.border_color = c_white;
+    mmenu.desc_enabled = true;
+    if( !is_colony && manage_world && worldname != "TUTORIAL" && worldname != "DEFENSE" ) {
+        mmenu.text = _( "Legacy solo save — not playable in CULL.  Delete or reset below." );
+    } else if( is_colony ) {
+        mmenu.text = _( "CULL colony world." );
+    }
     int opt_val = 0;
-    std::array<char, 6> hotkeys = { 'm', 's', 't', 'c', 'd', 'r' };
+    std::array<char, 5> hotkeys = { 'm', 's', 'c', 'd', 'r' };
     for( const std::string &it : vWorldSubItems ) {
         mmenu.entries.emplace_back( opt_val, true, hotkeys[opt_val],
                                     remove_color_tags( shortcut_text( c_white, it ) ) );
         ++opt_val;
     }
+    if( !is_colony && manage_world && worldname != "TUTORIAL" && worldname != "DEFENSE" ) {
+        mmenu.entries.emplace_back( opt_val, true, 'i', _( "Why can't I play this?" ),
+                                    c_light_gray, c_light_gray );
+        // Store policy entry index for the switch below.
+    }
+    const int policy_entry = ( !is_colony && manage_world && worldname != "TUTORIAL" &&
+                               worldname != "DEFENSE" ) ? opt_val : -1;
+    if( policy_entry >= 0 ) {
+        ++opt_val;
+    }
     mmenu.entries.emplace_back( opt_val, true, 'q', _( "<- Back to Main Menu" ), c_yellow, c_yellow );
     mmenu.query();
     opt_val = mmenu.ret;
+    if( opt_val == policy_entry ) {
+        popup( legacy_solo_save_policy_msg() );
+        return;
+    }
     if( opt_val < 0 || static_cast<size_t>( opt_val ) >= vWorldSubItems.size() ) {
         return;
     }
@@ -1214,19 +1322,7 @@ void main_menu::world_tab( const std::string &worldname )
         case 1: // Copy World settings
             world_generator->make_new_world( true, worldname );
             break;
-        case 2: // Character to Template
-            if( load_character_tab( worldname ) ) {
-                avatar &pc = get_avatar();
-                pc.setID( character_id(), true );
-                pc.reset_all_missions();
-                pc.character_to_template( pc.name );
-                pc = avatar();
-                MAPBUFFER.clear();
-                overmap_buffer.clear();
-                load_char_templates();
-            }
-            break;
-        case 3: // Toggle save compression
+        case 2: // Toggle save compression
             if( world_generator->get_world( worldname )->has_compression_enabled() ) {
                 if( query_yn( _( "Disable save compression?" ) ) ) {
                     world_generator->get_world( worldname )->set_compression_enabled( false );
@@ -1237,12 +1333,12 @@ void main_menu::world_tab( const std::string &worldname )
                 }
             }
             break;
-        case 4: // Delete World
+        case 3: // Delete World
             if( query_yn( _( "Delete the world and all saves within?" ) ) ) {
                 clear_world( true );
             }
             break;
-        case 5: // Reset World
+        case 4: // Reset World
             if( query_yn( _( "Remove all saves and regenerate world?" ) ) ) {
                 clear_world( false );
             }

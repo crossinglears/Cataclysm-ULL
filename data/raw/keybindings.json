@@ -3360,6 +3360,30 @@
   },
   {
     "type": "keybinding",
+    "name": "Colony construction",
+    "category": "DEFAULTMODE",
+    "id": "colony_construction"
+  },
+  {
+    "type": "keybinding",
+    "name": "Colony expeditions",
+    "category": "DEFAULTMODE",
+    "id": "colony_expeditions"
+  },
+  {
+    "type": "keybinding",
+    "name": "Colony defense",
+    "category": "DEFAULTMODE",
+    "id": "colony_combat"
+  },
+  {
+    "type": "keybinding",
+    "name": "Colony leadership hub",
+    "category": "DEFAULTMODE",
+    "id": "colony_hub"
+  },
+  {
+    "type": "keybinding",
     "name": "View character's morale",
     "category": "DEFAULTMODE",
     "id": "morale",
@@ -5362,6 +5386,13 @@
     "id": "INSPECT_NPC",
     "name": "Inspect NPC",
     "bindings": [ { "input_method": "keyboard_any", "key": "i" }, { "input_method": "gamepad", "key": "L_RADIAL_N" } ]
+  },
+  {
+    "type": "keybinding",
+    "category": "FACTION_MANAGER",
+    "id": "MANAGE_JOBS",
+    "name": "Colony job board",
+    "bindings": [ { "input_method": "keyboard_any", "key": "j" } ]
   },
   {
     "type": "keybinding",

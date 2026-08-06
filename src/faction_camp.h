@@ -3,6 +3,7 @@
 #define CATA_SRC_FACTION_CAMP_H
 
 #include <functional>
+#include <optional>
 #include <stdint.h>
 #include <string>
 #include <string_view>
@@ -12,6 +13,8 @@
 #include "coords_fwd.h"
 #include "translation.h"
 #include "type_id.h"
+
+class basecamp;
 
 template <typename E> struct enum_traits;
 
@@ -46,6 +49,23 @@ void basecamp_mission( npc & );
 
 /// Start a faction camp on the current OM tile
 void start_camp( npc & );
+
+/**
+ * Non-interactive faction camp founding for CULL colony bootstrap.
+ * Picks a matching base type for the OMT when possible, applies blueprint mapgen,
+ * and defines a camp owned by @p owner named @p camp_name.
+ */
+std::optional<basecamp *> found_colony_camp( const tripoint_abs_omt &omt_pos,
+        const faction_id &owner, const std::string &camp_name );
+
+/**
+ * CULL Phase 3/7 bootstrap: starter haul/farm zones, camp food stock,
+ * and default npc::job_data priorities on assigned residents.
+ * Construction blueprint zones are placed via Colony Construction (Phase 4).
+ * @param food_kcal_per_survivor Phase 7 gear/difficulty-scaled larder size.
+ */
+void seed_colony_local_work( basecamp &camp, int starter_survivor_count,
+                             int food_kcal_per_survivor = 12000 );
 
 void draw_camp_tabs( const catacurses::window &win, base_camps::tab_mode cur_tab,
                      const std::vector<std::vector<mission_entry>> &entries );
