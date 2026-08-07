@@ -33,6 +33,7 @@ void colony_toolbar_ui::draw_controls()
     // Labels include bound hotkeys when configured (DEFAULTMODE).
     input_context ctxt( "DEFAULTMODE" );
     ctxt.register_action( "colony_hub" );
+    ctxt.register_action( "colony_survivors" );
     ctxt.register_action( "factions" );
     ctxt.register_action( "colony_construction" );
     ctxt.register_action( "colony_expeditions" );
@@ -42,6 +43,9 @@ void colony_toolbar_ui::draw_controls()
     ImGui::SameLine();
 
     action_button( "colony_hub", ctxt.get_button_text( "colony_hub", _( "Hub" ) ) );
+    ImGui::SameLine();
+    action_button( "colony_survivors",
+                   ctxt.get_button_text( "colony_survivors", _( "Survivors" ) ) );
     ImGui::SameLine();
     action_button( "factions", ctxt.get_button_text( "factions", _( "Overview" ) ) );
     ImGui::SameLine();

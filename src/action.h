@@ -272,6 +272,8 @@ enum action_id : int {
     ACTION_COLONY_COMBAT,
     /** CULL: colony leadership hub (Phase 7) */
     ACTION_COLONY_HUB,
+    /** CULL: survivors roster / activity overview */
+    ACTION_COLONY_SURVIVORS,
     /** Displays morale menu */
     ACTION_MORALE,
     /** Displays medical menu */

@@ -34,6 +34,7 @@
 #include "colony_construction.h"
 #include "colony_expeditions.h"
 #include "colony_setup.h"
+#include "colony_survivors_ui.h"
 #include "colony_toolbar.h"
 #include "construction.h"
 #include "creature_tracker.h"
@@ -251,8 +252,8 @@ input_context game::get_player_input( std::string &action )
 
     const tripoint_bub_ms pos = u.pos_bub( here );
 
-    // Show leadership buttons in colony worlds; tear down if we left one.
-    ensure_colony_toolbar();
+    // Show leadership HUD in colony worlds; tear down if we left one.
+    ensure_colony_sidebar();
 
     input_context ctxt;
     if( uquit == QUIT_WATCH ) {
@@ -2249,6 +2250,77 @@ static void do_deathcam_action( const action_id &act, avatar &player_character )
     }
 }
 
+static std::map<action_id, std::string> get_actions_disabled_in_colony_god_mode()
+{
+    // Body / self play is leadership-only in CULL; craft remaps separately.
+    return std::map<action_id, std::string> {
+        { ACTION_OPEN,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_CLOSE,              _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_SMASH,              _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_LOOT,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_EXAMINE,            _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_EXAMINE_AND_PICKUP, _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_INTERACT,           _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_ADVANCEDINV,        _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_INVENTORY,          _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_COMPARE,            _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_ORGANIZE,           _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_USE,                _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_USE_WIELDED,        _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_WEAR,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_TAKE_OFF,           _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_EAT,                _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_OPEN_CONSUME,       _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_READ,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_WIELD,              _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_PICK_STYLE,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_RELOAD_ITEM,        _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_RELOAD_WEAPON,      _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_RELOAD_WIELDED,     _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_INSERT_ITEM,        _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_UNLOAD,             _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_MEND,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_THROW,              _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_THROW_WIELDED,      _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_FIRE,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_CAST_SPELL,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_RECAST_SPELL,       _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_FIRE_BURST,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_SELECT_FIRE_MODE,   _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_SELECT_DEFAULT_AMMO, _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_DROP,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_DIR_DROP,           _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_UNLOAD_CONTAINER,   _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_PICKUP,             _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_PICKUP_ALL,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_GRAB,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_HAUL,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_HAUL_TOGGLE,        _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_BUTCHER,            _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_CHAT,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_PEEK,               _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_RECRAFT,            _( "Use colony crafting to assign production." ) },
+        { ACTION_LONGCRAFT,          _( "Use colony crafting to assign production." ) },
+        { ACTION_DISASSEMBLE,        _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_CONSTRUCT,          _( "Use Colony Construction to place blueprints." ) },
+        { ACTION_SLEEP,              _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_CONTROL_VEHICLE,    _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_AUTOATTACK,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_BIONICS,            _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_MUTATIONS,          _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_SORT_ARMOR,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_WORKOUT,            _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_SUICIDE,            _( "You lead from above — there is no body to end." ) },
+        { ACTION_CYCLE_MOVE,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_CYCLE_MOVE_REVERSE, _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_RESET_MOVE,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_TOGGLE_RUN,         _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_TOGGLE_CROUCH,      _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_TOGGLE_PRONE,       _( "Issue orders — you do not act as a single survivor." ) },
+        { ACTION_OPEN_MOVEMENT,      _( "Issue orders — you do not act as a single survivor." ) },
+    };
+}
+
 static std::map<action_id, std::string> get_actions_disabled_in_shell()
 {
     return std::map<action_id, std::string> {
@@ -2365,6 +2437,21 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
     const std::map<action_id, std::string> actions_disabled_in_shell = get_actions_disabled_in_shell();
     const std::map<action_id, std::string> actions_disabled_while_handless_shapeshifted =
         get_actions_disabled_in_handless_temporary_shapeshift();
+    const std::map<action_id, std::string> actions_disabled_in_colony_god =
+        get_actions_disabled_in_colony_god_mode();
+
+    if( is_colony_god_mode() ) {
+        // Body-status style screens redirect to the colony roster.
+        if( act == ACTION_MEDICAL || act == ACTION_BODYSTATUS || act == ACTION_PL_INFO ||
+            act == ACTION_MORALE ) {
+            colony_survivors_ui();
+            return true;
+        }
+        if( actions_disabled_in_colony_god.count( act ) > 0 ) {
+            add_msg( m_info, actions_disabled_in_colony_god.at( act ) );
+            return true;
+        }
+    }
 
     if( in_shell && actions_disabled_in_shell.count( act ) > 0 ) {
         add_msg( m_info, actions_disabled_in_shell.at( act ) );
@@ -2954,7 +3041,11 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_CRAFT:
-            player_character.craft();
+            if( is_colony_god_mode() ) {
+                colony_open_unified_crafting();
+            } else {
+                player_character.craft();
+            }
             break;
 
         case ACTION_RECRAFT:
@@ -3139,6 +3230,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
 
         case ACTION_COLONY_HUB:
             colony_hub_menu();
+            break;
+
+        case ACTION_COLONY_SURVIVORS:
+            colony_survivors_ui();
             break;
 
         case ACTION_MORALE:

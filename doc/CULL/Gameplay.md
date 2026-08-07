@@ -8,7 +8,7 @@
 4. Time advances; crises and opportunities appear (raids, weather, discoveries, recruits).
 5. Expand capability (storage, farms, workshops, roads, defense) and push further out.
 
-The player never takes direct control of a survivor’s movement or attack keys. Leadership UI is the interface; see [UI.md](UI.md). In world, the player is a **god-mode observer**: movement keys pan the camera without walking or revealing fog; `<`/`>` change Z freely.
+The player never takes direct control of a survivor’s movement or attack keys. Leadership UI is the interface; see [UI.md](UI.md). In world, the player is a **god-mode observer**: movement keys pan the camera without walking; `<`/`>` change Z freely. Visibility is the **union of what on-map team members can see** (camp residents + ally followers). ENTER opens the survivors roster; craft opens unified camp production.
 
 ## Player orders (examples)
 

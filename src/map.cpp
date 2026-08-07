@@ -27,6 +27,7 @@
 #include "character_id.h"
 #include "clzones.h"
 #include "colony.h"
+#include "colony_camera.h"
 #include "color.h"
 #include "construction.h"
 #include "coordinates.h"
@@ -10594,6 +10595,13 @@ void map::build_map_cache( const int zlev, bool skip_lightmap )
     std::set_symmetric_difference( u.moncam_cache.begin(), u.moncam_cache.end(), mcache.begin(),
                                    mcache.end(), std::inserter( diff, diff.end() ) );
     camera_cache_dirty |= !diff.empty();
+
+    // CULL: union FOV from on-map camp residents + ally followers into camera_cache.
+    static std::vector<std::pair<tripoint_abs_ms, int>> prev_team_vision;
+    const std::vector<std::pair<tripoint_abs_ms, int>> team_vision =
+        colony_team_vision_sources();
+    camera_cache_dirty |= prev_team_vision != team_vision;
+
     // Initial value is illegal player position.
     const tripoint_abs_ms p = get_player_character().pos_abs();
     int const sr = u.unimpaired_range();
@@ -10616,11 +10624,20 @@ void map::build_map_cache( const int zlev, bool skip_lightmap )
     }
     if( camera_cache_dirty ) {
         u.moncam_cache = mcache;
+        prev_team_vision = team_vision;
         bool cumulative = seen_cache_dirty;
         for( Character::cached_moncam const &mon : u.moncam_cache ) {
             if( inbounds( mon.second ) ) {
                 int const range = mon.first->type->vision_day;
                 build_seen_cache( get_bub( mon.second ), mon.second.z(), range, cumulative,
+                                  true, std::max( MAX_VIEW_DISTANCE - range, 0 ) );
+                cumulative = true;
+            }
+        }
+        for( const std::pair<tripoint_abs_ms, int> &src : team_vision ) {
+            if( inbounds( src.first ) ) {
+                const int range = src.second;
+                build_seen_cache( get_bub( src.first ), src.first.z(), range, cumulative,
                                   true, std::max( MAX_VIEW_DISTANCE - range, 0 ) );
                 cumulative = true;
             }

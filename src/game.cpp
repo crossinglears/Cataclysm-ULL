@@ -104,6 +104,7 @@
 #include "colony_camera.h"
 #include "colony_combat.h"
 #include "colony_setup.h"
+#include "colony_sidebar.h"
 #include "fault.h"
 #include "field.h"
 #include "field_type.h"
@@ -1408,8 +1409,10 @@ void game::seed_colony_start( const colony_setup_options &opts )
     add_msg( m_good, _( "Your colony of %d survivors settles at %s.  Lead them well." ),
              starter_survivor_count, settlement->camp_name() );
     add_msg( m_info,
-             _( "You observe from above.  Movement keys pan the camera without revealing the map.  %s / %s change floor freely." ),
+             _( "You observe from above.  Movement keys pan the camera; you see what your on-map survivors see.  %s / %s change floor freely." ),
              press_x( ACTION_MOVE_UP ), press_x( ACTION_MOVE_DOWN ) );
+    add_msg( m_info, _( "%s for the survivors roster (who is doing what)." ),
+             press_x( ACTION_COLONY_SURVIVORS ) );
     add_msg( m_info, _( "%s for the colony leadership hub." ),
              press_x( ACTION_COLONY_HUB ) );
     add_msg( m_info, _( "%s for camp stock, expansions, and the colony job board." ),
@@ -1420,6 +1423,8 @@ void game::seed_colony_start( const colony_setup_options &opts )
              press_x( ACTION_COLONY_EXPEDITIONS ) );
     add_msg( m_info, _( "%s for standing combat orders, guards, and camp defense." ),
              press_x( ACTION_COLONY_COMBAT ) );
+    add_msg( m_info, _( "%s opens unified colony crafting from camp stock." ),
+             press_x( ACTION_CRAFT ) );
 }
 
 static int veh_lumi( vehicle &veh )
@@ -2751,6 +2756,7 @@ input_context get_default_mode_input_context()
         ctxt.register_action( "colony_expeditions" );
         ctxt.register_action( "colony_combat" );
         ctxt.register_action( "colony_hub" );
+        ctxt.register_action( "colony_survivors" );
         ctxt.register_action( "morale" );
         ctxt.register_action( "messages" );
         ctxt.register_action( "help" );
@@ -3485,6 +3491,10 @@ void game::draw( ui_adaptor &ui )
 
 void game::draw_panels( bool force_draw )
 {
+    // Colony worlds draw an ImGui sidebar instead of traditional panels.
+    if( colony_imgui_sidebar_active() ) {
+        return;
+    }
     static int previous_turn = -1;
     const int current_turn = to_turns<int>( calendar::turn - calendar::turn_zero );
     const bool draw_this_turn = current_turn > previous_turn || force_draw;

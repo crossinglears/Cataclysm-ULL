@@ -122,3 +122,10 @@ Archived solo loop (reference only): [Gameplay.md](Gameplay.md), [Vision.md](Vis
 ## Next up
 
 Polish backlog / Ideas parking lot — see [Ideas.md](Ideas.md). Core phases 0–7 complete.
+
+## Post–Phase 7 — God-mode leadership polish
+
+- [x] Shared team FOV (on-map residents + ally followers → `camera_cache`)
+- [x] Strip single-body DEFAULTMODE actions in `CULL_COLONY`
+- [x] Unified colony crafting via `basecamp::start_crafting`
+- [x] Survivors roster ImGui UI on ENTER (`colony_survivors`)

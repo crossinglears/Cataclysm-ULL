@@ -3384,6 +3384,16 @@
   },
   {
     "type": "keybinding",
+    "name": "Colony survivors roster",
+    "category": "DEFAULTMODE",
+    "id": "colony_survivors",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "RETURN" },
+      { "input_method": "keyboard_any", "key": "KEYPAD_ENTER" }
+    ]
+  },
+  {
+    "type": "keybinding",
     "name": "View character's morale",
     "category": "DEFAULTMODE",
     "id": "morale",
@@ -3592,8 +3602,6 @@
     "category": "DEFAULTMODE",
     "id": "action_menu",
     "bindings": [
-      { "input_method": "keyboard_any", "key": "RETURN" },
-      { "input_method": "keyboard_any", "key": "KEYPAD_ENTER" },
       { "input_method": "gamepad", "key": "ALT_A" }
     ]
   },

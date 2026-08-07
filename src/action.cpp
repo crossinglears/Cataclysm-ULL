@@ -332,6 +332,8 @@ std::string action_ident( action_id act )
             return "colony_combat";
         case ACTION_COLONY_HUB:
             return "colony_hub";
+        case ACTION_COLONY_SURVIVORS:
+            return "colony_survivors";
         case ACTION_MEDICAL:
             return "medical";
         case ACTION_BODYSTATUS:
@@ -449,6 +451,7 @@ bool can_action_change_worldstate( const action_id act )
         case ACTION_COLONY_EXPEDITIONS:
         case ACTION_COLONY_COMBAT:
         case ACTION_COLONY_HUB:
+        case ACTION_COLONY_SURVIVORS:
         case ACTION_MORALE:
         case ACTION_MEDICAL:
         case ACTION_BODYSTATUS:
@@ -1046,6 +1049,7 @@ action_id handle_action_menu( map &here )
             REGISTER_ACTION( ACTION_COLONY_EXPEDITIONS );
             REGISTER_ACTION( ACTION_COLONY_COMBAT );
             REGISTER_ACTION( ACTION_COLONY_HUB );
+            REGISTER_ACTION( ACTION_COLONY_SURVIVORS );
             REGISTER_ACTION( ACTION_MORALE );
             REGISTER_ACTION( ACTION_MEDICAL );
             REGISTER_ACTION( ACTION_BODYSTATUS );

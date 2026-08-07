@@ -42,7 +42,7 @@
 ### Player control
 
 - No direct survivor control as the default long-term play pattern. Leadership UI issues orders/priorities.
-- **Avatar/camera:** **god-mode observer** — invisible immortal engine proxy for turns/save (`src/colony_camera.*`). All starters are camp NPCs. Movement keys pan camera without revealing; `<`/`>` change Z freely; `control_npc` blocked. Sidebar: `cull_colony_sidebar`. See [UI.md](UI.md).
+- **Avatar/camera:** **god-mode observer** — invisible immortal engine proxy for turns/save (`src/colony_camera.*`). All starters are camp NPCs. Movement keys pan camera; shared team FOV unions on-map residents/allies into `camera_cache`; `<`/`>` change Z freely; `control_npc` blocked; body DEFAULTMODE actions refused; craft → `colony_open_unified_crafting`; ENTER → `colony_survivors_ui`. Sidebar: ImGui `colony_sidebar` (width via `cull_colony_sidebar`). See [UI.md](UI.md).
 - **Phase 2 leadership UI:** factions screen camp tab surfaces stock / residents / expansions (rough).
 - **Phase 5 expeditions UI:** Colony Expeditions panel plans scout / loot / hunt / recruit companion missions.
 
@@ -78,6 +78,8 @@ flowchart TD
 | Construction | Blueprint recipes + `src/construction.*` + `src/colony_construction.*` |
 | Combat / defense | `src/colony_combat.*`, `npc_follower_rules`, guard missions, `NPC_RETREAT` zones |
 | Leadership hub | `src/colony_setup.*` (`colony_hub_menu`), action `colony_hub` |
+| Survivors roster | `src/colony_survivors_ui.*`, action `colony_survivors` (ENTER) |
+| God camera / team FOV / craft | `src/colony_camera.*`, `map::build_map_cache` team FOV union |
 | Starter content | `data/json/cull/colony_starter_gear.json` |
 | NPC AI | `src/npcmove.cpp`, behavior trees, [NPCs.md](../JSON/NPCs.md) |
 | Saves | `src/savegame_json.cpp` — see [SaveSystem.md](SaveSystem.md) |

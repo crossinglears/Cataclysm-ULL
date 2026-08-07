@@ -54,7 +54,9 @@ Surfaces the player needs without avatar WASD control:
 - Expedition planning ([Exploration.md](Exploration.md)) — action `colony_expeditions` (Colony Expeditions panel)
 - Tactical standing orders ([Combat.md](Combat.md)) — action `colony_combat` (Colony Defense panel)
 - Colony leadership hub — action `colony_hub` (jumps to overview / jobs / build / expeditions / defense)
-- **In-world ImGui toolbar** (`colony_toolbar`): Hub / Overview / Build / Expeditions / Defense buttons along the top of the map view in `CULL_COLONY` worlds (same actions as keybinds)
+- **Survivors roster** — action `colony_survivors` (default **ENTER**): all residents + followers and current activity; Confirm centers camera
+- **Unified crafting** — action `craft`: camp skills/recipes + camp stock → companion craft mission
+- **In-world ImGui toolbar** (`colony_toolbar`): Hub / Survivors / Overview / Build / Expeditions / Defense
 - Camp expansion status ([ColonyManagement.md](ColonyManagement.md))
 
 **Phase 4 ships:** Colony Construction panel for tile blueprint zones and camp upgrade queueing; materials remain real items in camp/haul zones.
@@ -87,10 +89,15 @@ Surfaces the player needs without avatar WASD control:
 - The engine still needs a save/turn owner avatar; it is an invisible immortal proxy (`ensure_colony_god_avatar` in `src/colony_camera.*`).
 - **New Game → Start Colony** creates that proxy non-interactively (`character_type::NOW`) named “Colony Observer” — no character creator UI.
 - Starting survivors are **all** camp-resident NPCs (`game::seed_colony_start`); the observer is not counted as one of them.
-- **Movement keys** pan `view_offset` (camera only). They do **not** walk a body and do **not** expand fog of war.
+- **Movement keys** pan `view_offset` (camera only). They do **not** walk a body. Panning alone does **not** reveal unseen tiles.
+- **Team vision:** the player sees the union of FOV from every on-map camp resident and player-ally follower (`colony_team_vision_sources` → `camera_cache` in `map::build_map_cache`), plus the parked observer body / map memory.
 - **`<` / `>`** (`ACTION_MOVE_UP` / `DOWN`) change viewed Z freely — no stairs or ceiling checks.
-- **Possess / control NPC** is blocked in colony worlds (“cannot see through a survivor’s eyes”).
-- Sidebar layout `cull_colony_sidebar`: place/weather, date/time, wind/temp, plus Log and local Map. No HP/stamina/needs/weapon panels.
+- **Possess / control NPC** is blocked in colony worlds (“cannot see through a survivor's eyes” means **no body control**; shared team FOV is intentional).
+- **Single-body DEFAULTMODE actions** (inventory, fire, personal craft variants, open/close, etc.) are refused in god mode; leadership surfaces remain.
+- **Craft** (`&` / `ACTION_CRAFT`) opens **unified colony crafting**: camp assignee skills/recipes + camp stock → companion craft mission (`colony_open_unified_crafting`).
+- **ENTER** (`ACTION_COLONY_SURVIVORS`) opens the ImGui survivors roster (`src/colony_survivors_ui.*`): who they are, what they are doing; Confirm centers the camera on them without granting control.
+- Sidebar: ImGui `colony_sidebar` (place/weather, date/time, wind/temp, Log, overmap Map). Traditional `cull_colony_sidebar` layout still reserves terrain width. No HP/stamina/needs/weapon panels.
+- Toolbar: Hub / Survivors / Overview / Build / Expeditions / Defense.
 
 ## Archived solo UI — reference only
 
@@ -103,6 +110,7 @@ Not reachable from New Game or Play. Kept so we remember the old loop while arch
 Reuse camp mission UI patterns in `src/faction_camp.*` for colony panels.
 
 In-world leadership toolbar: `src/colony_toolbar.*` (ImGui HUD; see above).
+In-world colony sidebar: `src/colony_sidebar.*` (ImGui; see above).
 
 ## Related docs
 

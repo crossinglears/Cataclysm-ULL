@@ -23,7 +23,7 @@
     "separator": ": ",
     "padding": 2,
     "width": 44,
-    "//": "God-mode leadership sidebar: environment only. Log + Map are appended in C++.",
+    "//": "Width reservation for ImGui colony_sidebar (src/colony_sidebar.cpp). Content is drawn in ImGui; Log/Map panels appended in C++ are skipped while ImGui sidebar is active.",
     "widgets": [
       "cull_place_weather_layout",
       "cull_datetime_layout",
